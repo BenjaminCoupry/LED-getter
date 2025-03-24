@@ -25,3 +25,4 @@ parameters, losses = optim_steps.estimate_light(points, normals, images, shapes,
 
 outputs.export_results(out_path, parameters, points, normals, pixels, images, validity_mask, mask, losses, ps_images_paths)
 
+#TODO : accept .npz geometry, accept png data, accept raw without distorsion

@@ -1,5 +1,5 @@
 import jax
-import lib.image.lanczos as lanczos
+import ledgetter.image.lanczos as lanczos
 
 def cart2pol(cartesian, center):
     x, y = jax.numpy.unstack(cartesian - center, axis=-1)

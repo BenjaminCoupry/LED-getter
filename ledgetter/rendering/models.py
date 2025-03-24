@@ -1,7 +1,7 @@
 import jax
 import optax
-import lib.rendering.renderers as renderers
-import lib.rendering.lights as lights
+import ledgetter.rendering.renderers as renderers
+import ledgetter.rendering.lights as lights
 import functools
 
 
