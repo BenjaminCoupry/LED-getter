@@ -23,7 +23,7 @@ def get_lanczos_reampler(grid_function, span):
 def grid_from_array(array):
     shape = jax.numpy.asarray(array.shape[:-1])
     def grid_function(x, array):
-        coordinates = jax.numpy.clip(x, 0, shape-1)
+        coordinates = jax.numpy.clip(jax.numpy.round(x).astype(int), 0, shape-1)
         mask = jax.numpy.all(jax.numpy.logical_and(x>0, x<=shape-1), axis=-1)
         coordinates_tuple = tuple(jax.numpy.unstack(coordinates, axis=-1))
         value = array[coordinates_tuple]

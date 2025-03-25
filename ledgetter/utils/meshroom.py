@@ -47,16 +47,8 @@ def get_mesh_path(project_path):
     mesh_path = glob.glob(os.path.join(project_path,'MeshroomCache','MeshFiltering','*','mesh.obj'))[0]
     return mesh_path
 
-def get_pose(project_path, aligned_image_path):
-    sfm_path = get_sfm_path(project_path)
-    with open(sfm_path, 'r') as f:
-        sfm = json.load(f)
-    poses, views, intrinsics, names_ids = unpack_sfm(sfm)
-    if type(aligned_image_path) is list:
-        valid_path = next(filter(lambda name : os.path.realpath(name) in aligned_image_path, names_ids.keys()))
-        view_id = names_ids[os.path.realpath(valid_path)]
-    else:
-        view_id = names_ids[os.path.realpath(aligned_image_path)]
+def get_pose(sfm, view_id):
+    poses, views, intrinsics, _ = unpack_sfm(sfm)
     view = views[view_id]
     pose_id, instrinsic_id = view['poseId'], view['intrinsicId']
     pose, intrinsic = poses[pose_id], intrinsics[instrinsic_id]
@@ -65,10 +57,10 @@ def get_pose(project_path, aligned_image_path):
     pose_dict = {'K':K, 'R':R, 't':t, 'width':width, 'height':height, 'distorsion' : distorsion}
     return pose_dict
 
-def get_mesh(path):
-    if os.path.isdir(path):
-        mesh_path = get_mesh_path(path)
-    else:
-        mesh_path = path
-    mesh = open3d.t.io.read_triangle_mesh(mesh_path).transform(numpy.diag([1,-1,-1,1]))
-    return mesh
+def get_view_id(sfm, image_path):
+    _, _, _, names_ids = unpack_sfm(sfm)
+    if type(image_path) is not list :
+        image_path = [image_path]
+    valid_path = next(filter(lambda name : os.path.realpath(name) in image_path, names_ids.keys()))
+    view_id = names_ids[os.path.realpath(valid_path)]
+    return view_id

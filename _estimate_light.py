@@ -16,7 +16,7 @@ aligned_image_path = '/media/bcoupry/T7 Shield1/MSR_PROJECT/data/venus/multi_vie
 mesh_path = '/media/bcoupry/T7 Shield/MSR_PROJECT/data/venus/multi_view/mesh/mesh.obj'
 step=8
 
-points, normals, pixels, images, validity_mask, mask, shapes, output, optimizer = preprocessing.preprocess(project_path, ps_images_paths, step = step, threshold = (0.3, 0.2), aligned_image_path=aligned_image_path, mesh_path=mesh_path)
+points, normals, pixels, images, validity_mask, mask, shapes, output, optimizer = preprocessing.preprocess(ps_images_paths, step, threshold=(0.3,0.2), meshroom_project=project_path, aligned_image_path=aligned_image_path, mesh_path=mesh_path, pose_path=None)
 
 iterations = optim_steps.get_default_iterations()
 del iterations['rail']
@@ -26,3 +26,7 @@ parameters, losses = optim_steps.estimate_light(points, normals, images, shapes,
 outputs.export_results(out_path, parameters, points, normals, pixels, images, validity_mask, mask, losses, ps_images_paths)
 
 #TODO : accept .npz geometry, accept png data, accept raw without distorsion
+
+#TODO : tester image PNG, avec ou sans distorsion, mesh ou sphere
+
+#TODO : mettre les parametres dans un dictionnaire
