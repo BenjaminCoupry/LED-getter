@@ -2,6 +2,14 @@ import jax
 import tqdm
 
 def get_tqdm_output(tqdm_refresh = 100):
+    """Creates a JAX-compatible tqdm progress bar updater.
+
+    Args:
+        tqdm_refresh (int, optional): Frequency of progress bar updates. Defaults to 100.
+
+    Returns:
+        function: A function that updates the progress bar based on iteration progress.
+    """
     progress_bar = tqdm.tqdm(desc='Progress (-.--e---)')
     def update_progress(value, i, iterations):
         if int(i)==0:

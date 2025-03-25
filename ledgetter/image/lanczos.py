@@ -3,10 +3,30 @@ import itertools
 import functools
 
 def lanczos_kernel(x, span):
+    """Computes the Lanczos kernel for resampling.
+
+    Args:
+        x (Array ...): Input coordinate offsets.
+        span (int): Lanczos kernel span.
+
+    Returns:
+        Array ...: Computed Lanczos kernel values.
+    """
     kernel = jax.numpy.where(jax.numpy.abs(x)<span, jax.numpy.sinc(x)*jax.numpy.sinc(x/span), 0)
     return kernel
 
 def get_lanczos_reampler(grid_function, span):
+    """Creates a Lanczos resampler using a given grid function.
+
+    Args:
+        grid_function : 
+            Function that retrieves values and masks from a grid.
+        span (int): Lanczos kernel span.
+
+    Returns:
+        Callable: 
+            A vectorized resampling function that interpolates values from the grid.
+    """
     shifts = jax.numpy.arange(-span + 1, span + 1)
     def resampler(x):
         indices = jax.numpy.array(list(itertools.product(range(2 * span), repeat=jax.numpy.shape(x)[-1])))
@@ -21,6 +41,15 @@ def get_lanczos_reampler(grid_function, span):
     return vectorized_resampler
 
 def grid_from_array(array):
+    """Creates a grid function that retrieves values from an array.
+
+    Args:
+        array (Array ..., v): Input array.
+
+    Returns:
+        Callable: 
+            A function that retrieves values and masks from the array given coordinates.
+    """
     shape = jax.numpy.asarray(array.shape[:-1])
     def grid_function(x, array):
         coordinates = jax.numpy.clip(jax.numpy.round(x).astype(int), 0, shape-1)
