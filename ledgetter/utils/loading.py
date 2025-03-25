@@ -33,17 +33,21 @@ def chunck_index(chunck, length):
     chunck_slice =  slice(div_points[section], div_points[section+1])
     return chunck_slice
 
-def get_pixelmap(pose):
+def get_pixelmap(size):
     """
     Generates a pixel coordinate map for an image of given dimensions.
 
     Parameters:
-    pose (dict): A dictionary containing image metadata, including 'width' and 'height'.
+    size (dict | str): A dictionary containing image 'width' and 'height' or a path to image.
 
     Returns:
     jax.numpy.ndarray: An array of shape (height, width, 2) representing pixel coordinates.
     """
-    width, height = int(pose['width']), int(pose['height'])
+    if type(size) is dict :
+        width, height = int(size['width']), int(size['height'])
+    else:
+        props = iio.improps(size)
+        width, height = props.shape[1], props.shape[0]
     width_range, height_range = jax.numpy.arange(0,width),jax.numpy.arange(0,height)
     coordinates = jax.numpy.stack(jax.numpy.meshgrid(width_range,height_range),axis=-1)
     return coordinates
@@ -79,7 +83,7 @@ def extract_pixels(image, pixels, pose=None, kernel_span=5, batch_size=100):
     Returns:
     tuple: A tuple containing the extracted pixel values and a mask indicating valid pixels, and the shapes of the problem.
     """
-    if pose is not None: #given undistorsion
+    if pose : #given undistorsion
         K, distorsion = jax.numpy.asarray(pose['K']), jax.numpy.asarray(pose['distorsion'])
         grid = undistort.get_undistorted_image(K, distorsion, jax.numpy.asarray(image), kernel_span)
     else: #without undistorsion

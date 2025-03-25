@@ -7,13 +7,15 @@ import ledgetter.rendering.validity as validity
 
 
 
-def preprocess(ps_images_paths, step, threshold=(0,0), meshroom_project=None, aligned_image_path=None, mesh_path=None, pose_path=None):
+
+def preprocess(ps_images_paths, step, threshold=(0,0), meshroom_project=None, aligned_image_path=None, geometry_path=None, pose_path=None):
     pose = loading.load_pose(pose_path if pose_path else meshroom_project, aligned_image_path if aligned_image_path else ps_images_paths) if pose_path or meshroom_project else None
-    pixelmap = loading.get_pixelmap(pose)[::step, ::step]
-    geometric_mask, normalmap, pointmap = loading.load_geometry(mesh_path if mesh_path else meshroom_project, pixelmap, pose)
-    dev_images, undisto_mask, (_, n_im, n_c) = loading.load_images(ps_images_paths, pixelmap, pose)
-    mask = jax.numpy.logical_and(geometric_mask, undisto_mask)
-    points, normals, pixels, images = jax.numpy.asarray(pointmap[mask]), jax.numpy.asarray(normalmap[mask]), jax.numpy.asarray(pixelmap[mask]), jax.numpy.asarray(dev_images[mask])
+    pixelmap = loading.get_pixelmap(pose if pose else ps_images_paths[0])[::step, ::step]
+    geometric_mask, normalmap, pointmap = loading.load_geometry(geometry_path if geometry_path else meshroom_project, pixelmap, pose)
+    geom_images, undisto_mask, (_, n_im, n_c) = loading.load_images(ps_images_paths, pixelmap[geometric_mask], pose)
+    geom_points, geom_normals, geom_pixels = pointmap[geometric_mask], normalmap[geometric_mask], pixelmap[geometric_mask]
+    points, normals, pixels, images = jax.numpy.asarray(geom_points[undisto_mask]), jax.numpy.asarray(geom_normals[undisto_mask]), jax.numpy.asarray(geom_pixels[undisto_mask]), jax.numpy.asarray(geom_images[undisto_mask])
+    mask = jax.numpy.zeros(pixelmap.shape[:2], dtype=bool).at[geometric_mask].set(undisto_mask)
     validity_mask = validity.validity_mask(images, threshold[0], threshold[1])
     output = logs.get_tqdm_output(0)
     optimizer = optax.adam(0.001) #optax.lbfgs()
