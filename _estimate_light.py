@@ -36,4 +36,6 @@ outputs.export_results(out_path, parameters, points, normals, pixels, images, va
 
 #TODO : tester image PNG, avec ou sans distorsion, mesh ou sphere
 
-#TODO : mettre les parametres dans un dictionnaire
+#TODO integrer build masked et norm vector pour simplifier les fonctions de rendering (ctrl-f linalg.norm)
+
+#TODO : mettre les parametres dans un dictionnaire et integrer la methode WACV

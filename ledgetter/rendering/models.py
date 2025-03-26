@@ -14,28 +14,6 @@ def get_loss(model, delta=0.01):
         return loss_value
     return loss
 
-def to_geometric_loss(loss, parameters_raw, data_raw):
-    def geometric_loss(parameters, data):
-        parameters_loss, data_loss = unravel_geometric_params(parameters, data)
-        loss_value = loss(parameters_loss, data_loss)
-        return loss_value
-    projections = (functools.partial(optax.projections.projection_box, lower = 0, upper=1), jax.vmap(optax.projections.projection_l2_sphere, in_axes=0))
-    parameters_g, data_g = ravel_geometric_params(parameters_raw, data_raw)
-    return geometric_loss, (parameters_g, data_g), projections
-
-def ravel_geometric_params(parameters, data):
-    rho, normals = parameters[0], data[0]
-    parameters_g = (rho, normals)
-    data_g = (data, parameters)
-    return parameters_g, data_g
-
-def unravel_geometric_params(parameters_g, data_g):
-    rho, normals = parameters_g
-    data_raw, parameters_raw = data_g
-    parameters = (rho,) + parameters_raw[1:]
-    data = (normals,) + data_raw[1:]
-    return parameters, data
-
 
 def get_directional_model():
     def model(parameters, normals, points):
