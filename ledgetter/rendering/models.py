@@ -14,7 +14,9 @@ def get_projections(parameters):
                    'light_principal_direction': jax.vmap(optax.projections.projection_l2_sphere, in_axes=0),
                    'mu':optax.projections.projection_non_negative,
                    'rho_spec':functools.partial(optax.projections.projection_box, lower = 0, upper=1), 
-                   'tau_spec':optax.projections.projection_non_negative}
+                   'tau_spec':optax.projections.projection_non_negative,
+                   'direction_grid' : jax.vmap(jax.vmap(optax.projections.projection_l2_sphere, in_axes=0),in_axes=0),
+                   'intensity_grid':optax.projections.projection_non_negative}
     projections = {parameter : projections_dict[parameter] for parameter in parameters}
     return projections
 
@@ -28,6 +30,8 @@ def light_image(values, model):
         light_local_directions, light_local_intensity = lights.get_isotropic_punctual_light(values['light_locations'], values['light_power'], values['points'])
     if model['light']=='LED':
         light_local_directions, light_local_intensity = lights.get_led_light(values['light_locations'], values['light_power'], values['light_principal_direction'], values['mu'], values['points'])
+    if model['light']=='grid':
+        light_local_directions, light_local_intensity = lights.get_grid_light(values['direction_grid'], values['intensity_grid'], values['pixels'])
     return light_local_directions, light_local_intensity
 
 def render_image(light_directions, light_intensity, values, model):

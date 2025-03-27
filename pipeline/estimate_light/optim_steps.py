@@ -2,13 +2,27 @@ import jax
 import ledgetter.optim.gradient_descent as gradient_descent
 import ledgetter.rendering.models as models
 
+import ledgetter.rendering.lights as lights
+import ledgetter.utils.vector_tools as vector_tools
 
+def estimate_grid_light(points, normals, images, pixels, shapes, output, optimizer, mask, validity_mask, iterations, pixel_step):
 
-def get_default_iterations():
-    iterations = {'directional' : 400, 'rail':300, 'punctual':4000, 'LED' : 4000, 'specular':3000}
-    return iterations
-#updater le dictionnaire des params plutot que de tout extraire a chaque step
-def estimate_light(points, normals, images, shapes, output, optimizer, mask, validity_mask, iterations):
+    data = {'normals':normals, 'points':points, 'images':images, 'validity_mask':validity_mask[...,None,:], 'pixels':pixels}
+    losses = []
+      
+    rho = init_rho(images)
+    direction_grid, intensity_grid = init_grid(shapes, pixels, pixel_step)
+    if 'lambertian' in iterations:
+        parameters_0 = {'rho' : rho, 'direction_grid' : direction_grid, 'intensity_grid':intensity_grid}
+        projections = models.get_projections(parameters_0)
+        loss = models.get_loss({'light':'grid', 'renderers':['lambertian']}, delta=0.01)
+        parameters_0, losses_0 = jax.jit(gradient_descent.get_gradient_descent(optimizer, loss, iterations['lambertian'], projections=projections, output=output, extra = True, unroll=1))(parameters_0, data = data)
+        rho, direction_grid, intensity_grid = parameters_0['rho'], parameters_0['direction_grid'], parameters_0['intensity_grid']
+        losses.append(losses_0)
+    parameters = {'rho' : rho, 'direction_grid' : direction_grid, 'intensity_grid':intensity_grid}
+    return parameters, losses
+
+def estimate_point_light(points, normals, images, shapes, output, optimizer, mask, validity_mask, iterations):
     data = {'normals':normals, 'points':points, 'images':images, 'validity_mask':validity_mask[...,None,:]}
     losses = []
 
@@ -132,3 +146,11 @@ def init_specular(shapes):
     rho_spec = jax.numpy.ones((n_pix,))*0.0
     tau_spec = jax.numpy.ones(tuple())*20.0
     return rho_spec, tau_spec
+
+
+def init_grid(shapes, pixels, pixel_step):
+    (n_pix, n_im, n_c) = shapes
+    nx, ny = int((jax.numpy.max(pixels[:,0])-jax.numpy.min(pixels[:,0]))/pixel_step), int((jax.numpy.max(pixels[:,1])-jax.numpy.min(pixels[:,1]))/pixel_step)
+    direction_grid = jax.numpy.zeros((nx, ny ,n_im, 3)).at[:,:,:,2].set(-1)
+    intensity_grid = jax.numpy.ones((nx, ny ,n_im, 1))
+    return direction_grid, intensity_grid

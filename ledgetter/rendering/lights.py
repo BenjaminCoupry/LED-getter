@@ -1,5 +1,6 @@
 import jax
 import ledgetter.utils.vector_tools as vector_tools
+import ledgetter.image.lanczos as lanczos
 
 
 def get_directional_light(light_directions, light_power):
@@ -74,3 +75,13 @@ def get_led_light(light_locations, light_power, light_principal_direction, mu, p
     light_local_power = jax.numpy.expand_dims(light_power, axis=-2) / jax.numpy.square(light_local_distances)
     light_local_intensity = jax.numpy.einsum('pl, plc ->plc', light_local_power, anisotropy)
     return light_local_directions, light_local_intensity
+
+def get_grid_light(direction_grid, intensity_grid, pixels, span=3):
+    min_range, max_range = jax.numpy.min(pixels, axis=0), jax.numpy.max(pixels, axis=0)
+    x_transform = (jax.numpy.asarray(direction_grid.shape[:2])-1)*(pixels-min_range)/(max_range-min_range)
+    grid_interpolator = lambda grid : lanczos.get_lanczos_reampler(lanczos.grid_from_array(grid), span)(x_transform)[0]
+    light_local_directions_unnormed =  jax.numpy.moveaxis(jax.lax.map(grid_interpolator, jax.numpy.moveaxis(direction_grid, 2, 0)), 0, 1)
+    light_local_intensity = jax.numpy.moveaxis(jax.lax.map(grid_interpolator, jax.numpy.moveaxis(intensity_grid, 2, 0)), 0, 1)
+    light_local_directions =  vector_tools.norm_vector(light_local_directions_unnormed)[1]
+    return light_local_directions, light_local_intensity
+    
