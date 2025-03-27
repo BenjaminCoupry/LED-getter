@@ -31,5 +31,5 @@ def build_masked(mask, data, shape=None):
     """
     if shape is None:
         shape = jax.numpy.shape(mask) + jax.numpy.shape(data)[1:]
-    filled_array = jax.numpy.zeros(shape).at[mask].set(data)
+    filled_array = jax.numpy.zeros(shape, dtype = jax.numpy.dtype(data)).at[mask].set(data)
     return filled_array

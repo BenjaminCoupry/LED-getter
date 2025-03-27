@@ -5,7 +5,7 @@ import pipeline.estimate_light.outputs as outputs
 
 view_id, mesh_id =3, 3
 ps_images_paths = sorted(glob.glob(f'/media/bcoupry/T7 Shield/Chauvet_1203_matin/PS_{view_id:02d}/DSC_*.NEF'))
-out_path = f'/media/bcoupry/T7 Shield/Chauvet_1203_matin/PS_{view_id:02d}/light_v2'
+out_path = f'/media/bcoupry/T7 Shield/Chauvet_1203_matin/PS_{view_id:02d}/light_v3_rail'
 step = 10
 project_path = f'/media/bcoupry/T7 Shield/Chauvet_1203_matin/meshroom/{mesh_id:02d}'
 points, normals, pixels, images, validity_mask, mask, shapes, output, optimizer = preprocessing.preprocess(ps_images_paths, step, threshold=(0.3,0.2), meshroom_project=project_path)
@@ -26,16 +26,16 @@ points, normals, pixels, images, validity_mask, mask, shapes, output, optimizer 
 #points, normals, pixels, images, validity_mask, mask, shapes, output, optimizer = preprocessing.preprocess(ps_images_paths, step, threshold=(0.3,0.2), geometry_path=geometry_path)
 
 iterations = optim_steps.get_default_iterations()
-del iterations['rail']
+#del iterations['rail']
 
 parameters, losses = optim_steps.estimate_light(points, normals, images, shapes, output, optimizer, mask, validity_mask, iterations)
 
 outputs.export_results(out_path, parameters, points, normals, pixels, images, validity_mask, mask, losses, ps_images_paths)
 
-#TODO : accept .npz geometry, accept png data, accept raw without distorsion
+
 
 #TODO : tester image PNG, avec ou sans distorsion, mesh ou sphere
 
-#TODO integrer build masked et norm vector pour simplifier les fonctions de rendering (ctrl-f linalg.norm)
-
 #TODO : mettre les parametres dans un dictionnaire et integrer la methode WACV
+
+#TODO : exporter les parametres sous forme de dictionnaire
