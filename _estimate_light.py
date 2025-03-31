@@ -5,7 +5,7 @@ import pipeline.estimate_light.outputs as outputs
 
 
 
-mode = 'LED'
+mode = 'grid'
 
 view_id, mesh_id =3, 3
 ps_images_paths = sorted(glob.glob(f'/media/bcoupry/T7 Shield/Chauvet_1203_matin/PS_{view_id:02d}/DSC_*.NEF'))
@@ -29,16 +29,16 @@ points, normals, pixels, images, validity_mask, mask, shapes, output, optimizer 
 # step = 1
 #points, normals, pixels, images, validity_mask, mask, shapes, output, optimizer = preprocessing.preprocess(ps_images_paths, step, threshold=(0.3,0.2), geometry_path=geometry_path)
 
-
 if mode=='grid':
     iterations = {'lambertian':1000}
-    parameters, losses = optim_steps.estimate_grid_light(points, normals, images, pixels, shapes, output, optimizer, mask, validity_mask, iterations, 800)
+    parameters, data, losses, steps = optim_steps.estimate_grid_light(points, normals, images, pixels, shapes, output, optimizer, mask, validity_mask, iterations, 800)
+    outputs.export_results(out_path, mask, parameters, data, losses, steps, images, ps_images_paths)
 else:
     iterations = {'directional' : 400, 'rail':300, 'punctual':4000, 'LED' : 4000, 'specular':3000}
-    parameters, losses = optim_steps.estimate_point_light(points, normals, images, shapes, output, optimizer, mask, validity_mask, iterations)
-
-outputs.export_results(out_path, parameters, points, normals, pixels, images, validity_mask, mask, losses, ps_images_paths)
-
+    parameters, data, losses, steps = optim_steps.estimate_physical_light(points, normals, images, pixels, shapes, output, optimizer, mask, validity_mask, iterations)
+    outputs.export_results(out_path, mask, parameters, data, losses, steps, images, ps_images_paths)
 
 
+
+#TODO : les ancrages de la grid doivent etre fixés à l'initialisation !! (risque en cas d'appel sur un batch)
 #TODO : tester image PNG, avec ou sans distorsion, mesh ou sphere

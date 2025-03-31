@@ -10,43 +10,42 @@ import pathlib
 
 
 
-def export_misc(out_path, mask, normals, points, parameters):
-    os.makedirs(os.path.join(out_path,'misc'), exist_ok=True)
-    normalmap = vector_tools.build_masked(mask, normals)
-    iio.imwrite(os.path.join(out_path,'misc','geometry_normals.png'),numpy.uint8(0.5*(normalmap*numpy.asarray([1,-1,-1])+1)*255))
-    zmap = vector_tools.build_masked(mask, 1- ((points[:,-1] - numpy.min(points[:,-1])) / (numpy.max(points[:,-1]) - numpy.min(points[:,-1]))))
-    iio.imwrite(os.path.join(out_path,'misc','geometry_zmap.png'),numpy.uint8((numpy.clip(zmap,0,1))*255))
-    albedomap = vector_tools.build_masked(mask, parameters['rho'])
-    iio.imwrite(os.path.join(out_path, 'misc', 'albedomap.png'),numpy.uint8(numpy.clip(albedomap/numpy.quantile(parameters['rho'], 0.99),0,1)*255))
-    if 'rho_spec' in parameters:
-        albedospecmap = vector_tools.build_masked(mask, parameters['rho_spec'])
-        iio.imwrite(os.path.join(out_path, 'misc', 'albedospecmap.png'),numpy.uint8(numpy.clip(albedospecmap/numpy.quantile(parameters['rho_spec'], 0.99),0,1)*255))
-
-
-def export_images(out_path, light_direction, light_intensity, validity_mask, mask, ps_images_paths, images, normals, points, parameters):
+def export_images(out_path, rendered_images, ps_images_paths, images, mask, values):
     os.makedirs(os.path.join(out_path,'images'), exist_ok=True)
-    specular = 'rho_spec' in parameters and 'tau_spec' in parameters
-    lamertian_images = renderers.lambertian_renderer(light_direction, light_intensity, normals, points, parameters['rho']) #lambertian and specular
-    if specular:
-        specular_images = renderers.specular_renderer(light_direction, light_intensity, normals, points, parameters['rho_spec'], parameters['tau_spec'])
-        model_images = lamertian_images + specular_images
+    rendered_image = jax.tree_util.tree_reduce(lambda x, y : x + y, rendered_images)
     scale = numpy.quantile(images, 0.98)
     for im in range(images.shape[-1]):
         name = pathlib.Path(ps_images_paths[im]).stem
-        simulated_lambertian_image = vector_tools.build_masked(mask, lamertian_images[:,:,im]/scale)
+        os.makedirs(os.path.join(out_path,'images', name), exist_ok=True)
         ref_image = vector_tools.build_masked(mask, images[:,:,im]/scale)
-        validity_image = vector_tools.build_masked(mask, validity_mask[:,im])
-        if specular:
-            simulated_image = vector_tools.build_masked(mask, model_images[:,:,im]/scale)
-            simulated_specular_image = vector_tools.build_masked(mask, specular_images[:,:,im]/scale)
-            iio.imwrite(os.path.join(out_path,'images',f'{name}_simulated_lambertian.png'),numpy.uint8(255.0*numpy.clip(simulated_lambertian_image,0,1)))
-            iio.imwrite(os.path.join(out_path,'images',f'{name}_simulated_specular.png'),numpy.uint8(255.0*numpy.clip(simulated_specular_image,0,1)))
-            iio.imwrite(os.path.join(out_path,'images',f'{name}_simulated.png'),numpy.uint8(255.0*numpy.clip(simulated_image,0,1)))
-        else:
-            iio.imwrite(os.path.join(out_path,'images',f'{name}_simulated.png'),numpy.uint8(255.0*numpy.clip(simulated_lambertian_image,0,1)))
-        
-        iio.imwrite(os.path.join(out_path,'images',f'{name}_reference.png'),numpy.uint8(255.0*numpy.clip(ref_image,0,1)))
-        iio.imwrite(os.path.join(out_path,'images',f'{name}_validity.png'), validity_image)
+        iio.imwrite(os.path.join(out_path,'images',name,'reference.png'),numpy.uint8(255.0*numpy.clip(ref_image,0,1)))
+        simulated_image = vector_tools.build_masked(mask, rendered_image[:,:,im]/scale)
+        iio.imwrite(os.path.join(out_path,'images',name,'simulated.png'),numpy.uint8(255.0*numpy.clip(simulated_image,0,1)))
+        if 'validity_mask' in values:
+            validity_image = vector_tools.build_masked(mask, values['validity_mask'][:,0,im])
+            iio.imwrite(os.path.join(out_path,'images', name, 'validity.png'), validity_image)
+        for renderer in rendered_images:
+            simulated_image_renderer = vector_tools.build_masked(mask, rendered_images[renderer][:,:,im]/scale)
+            iio.imwrite(os.path.join(out_path,'images', name, f'{renderer}_simulated.png'),numpy.uint8(255.0*numpy.clip(simulated_image_renderer,0,1)))
+
+
+
+def export_misc(out_path, mask, values, losses, steps):
+    os.makedirs(os.path.join(out_path,'misc'), exist_ok=True)
+    if 'normals' in values :
+        normalmap = vector_tools.build_masked(mask, values['normals'])
+        iio.imwrite(os.path.join(out_path,'misc','geometry_normals.png'),numpy.uint8(0.5*(normalmap*numpy.asarray([1,-1,-1])+1)*255))
+    if 'points' in values:
+        zmap = vector_tools.build_masked(mask, 1- ((values['points'][:,-1] - numpy.min(values['points'][:,-1])) / (numpy.max(values['points'][:,-1]) - numpy.min(values['points'][:,-1]))))
+        iio.imwrite(os.path.join(out_path,'misc','geometry_zmap.png'),numpy.uint8((numpy.clip(zmap,0,1))*255))
+    if 'rho' in values:
+        albedomap = vector_tools.build_masked(mask, values['rho'])
+        iio.imwrite(os.path.join(out_path, 'misc', 'albedomap.png'),numpy.uint8(numpy.clip(albedomap/numpy.quantile(values['rho'], 0.99),0,1)*255))
+    if 'rho_spec' in values:
+        albedospecmap = vector_tools.build_masked(mask, values['rho_spec'])
+        iio.imwrite(os.path.join(out_path, 'misc', 'albedospecmap.png'),numpy.uint8(numpy.clip(albedospecmap/numpy.quantile(values['rho_spec'], 0.99),0,1)*255))
+    loss_plot = get_losses_plot(losses, steps)
+    loss_plot.savefig(os.path.join(out_path, 'misc', 'loss_plot.png'), dpi=300, bbox_inches='tight')
 
 
 def export_lightmaps(out_path, light_direction, light_intensity, mask, ps_images_paths):
@@ -59,6 +58,7 @@ def export_lightmaps(out_path, light_direction, light_intensity, mask, ps_images
         iio.imwrite(os.path.join(out_path, 'lights', f'{name}_direction.png'),numpy.uint8(0.5*(simulated_direction*numpy.asarray([1,-1,-1])+1)*255))
         iio.imwrite(os.path.join(out_path, 'lights',f'{name}_intensity.png'),numpy.uint8(numpy.clip(simulated_intensity / max_intensity,0,1)*255))
 
+
 def export_LP(out_path, light_direction, ps_images_paths):
     os.makedirs(os.path.join(out_path,'LP'), exist_ok=True)
     L0 = (lambda x : x/numpy.linalg.norm(x,axis=-1,keepdims=True))(numpy.mean(light_direction, axis=0))
@@ -67,17 +67,53 @@ def export_LP(out_path, light_direction, ps_images_paths):
     X = numpy.concatenate([names_array,str_L0],axis=-1)
     numpy.savetxt(os.path.join(out_path,'LP','light_direction.lp'), X, fmt = '%s', header = str(len(ps_images_paths)), delimiter = ' ', comments='')
 
-def export_light(out_path, parameters, pixels, losses):
-    losses_all = jax.numpy.concatenate(losses)
-    numpy.savez(os.path.join(out_path, 'light.npz'), pixels = pixels, losses = losses_all, **parameters)
+def export_light(out_path, values, losses):
+    losses_all = numpy.concatenate(losses)
+    numpy.savez(os.path.join(out_path, 'light.npz'), losses = losses_all, **values)
 
-def export_results(out_path, parameters, points, normals, pixels, images, validity_mask, mask, losses, ps_images_paths):
-    light_direction, light_intensity = models.light_image(parameters | {'normals':normals, 'points':points, 'pixels':pixels}, {'light':'LED'} if 'light_locations' in parameters else {'light':'grid'})
-    export_misc(out_path, mask, normals, points, parameters)
-    export_images(out_path, light_direction, light_intensity, validity_mask, mask, ps_images_paths, images, normals, points, parameters)
+def get_losses_plot(losses, steps):
+    iterations = list(map(len, losses))
+    boundaries = numpy.cumsum([0] + iterations)
+    fig, ax1 = plt.subplots(figsize=(10, 6))
+    ax2 = ax1.twinx()
+    line1, = ax1.plot(numpy.concatenate(losses), label="logarithmic", color = 'red')
+    for i in range(len(iterations)):
+        start = boundaries[i] if i!=0 else boundaries[0]-0.1*boundaries[-1]
+        end = boundaries[i + 1]
+        color = "wheat" if i % 2 == 0 else "lightblue"
+        z = 0.9 if i % 2 == 0 else 0.85
+        ax1.axvspan(start, end, color=color, alpha=0.5)
+        ax2.text((start + end) / 2, z, steps[i],
+                horizontalalignment="center",
+                verticalalignment="top",
+                fontsize=10,
+                transform=ax1.get_xaxis_transform())
+    ax1.set_yscale('log')
+    ax1.set_xlim(boundaries[0]-0.1*boundaries[-1], boundaries[-1])
+    ax1.set_xlabel("Iteration")
+    ax1.set_title("Loss over Iterations with Optimization Steps")
+    
+    ax2.set_ylabel("Loss")
+    line2, = ax2.plot(numpy.concatenate(losses), label="linear", color = 'blue')
+    ax2.grid(axis='y')
+    lines = [line1, line2]
+    labels = [line.get_label() for line in lines]
+    ax2.legend(lines, labels, loc="center right")
+    ax1.tick_params(axis='y', which='both', colors='red') 
+    ax2.tick_params(axis='y', which='both', colors='blue')
+    fig.tight_layout()
+    return fig
+
+
+
+def export_results(out_path, mask, parameters, data, losses, steps, images, ps_images_paths):
+    values = parameters | data
+    model = models.model_from_parameters(parameters, data)
+    light, renderer, _ = models.get_model(model)
+    light_direction, light_intensity = light(values)
+    rendered_images = renderer(light_direction, light_intensity, values)
     export_lightmaps(out_path, light_direction, light_intensity, mask, ps_images_paths)
     export_LP(out_path, light_direction, ps_images_paths)
-    export_light(out_path, parameters, pixels, losses)
-
-
-
+    export_light(out_path, values, losses)
+    export_misc(out_path, mask, values, losses, steps)
+    export_images(out_path, rendered_images, ps_images_paths, images, mask, values)
