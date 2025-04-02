@@ -4,8 +4,40 @@ import ledgetter.rendering.models as models
 
 import ledgetter.rendering.lights as lights
 import ledgetter.utils.vector_tools as vector_tools
+import scipy.interpolate
+import functools
+import ledgetter.utils.loading as loading
 
 
+def solve_ps(light_values, points, normals, images, pixels, shapes, output, optimizer, mask, validity_mask, iterations, chunck_number = 5):
+    losses, steps = [], []
+    (n_pix, n_im, n_c) = shapes
+    light_local_direction, light_local_intensity, rho = init_ps_parameters(light_values, points, pixels)
+    if 'PS' in iterations:
+        it = iterations['PS']
+        loss, projections = models.get_loss({'light':'constant', 'renderers':['lambertian'], 'parameters'  : ['normals','rho']}, delta=0.01)
+        @functools.partial(jax.numpy.vectorize, signature='(i),(c,l),(l),(l,i),(l,c),(i),(c)->(c),(i),(t)')
+        def minimize(points, images, validity_mask, light_local_direction, light_local_intensity, normals, rho):
+            data = { 'points':points, 'validity_mask': validity_mask[...,None,:], 'light_local_direction':light_local_direction, 'light_local_intensity':light_local_intensity}
+            parameters = {'normals':normals, 'rho':rho}
+            parameters, losses_values = gradient_descent.get_gradient_descent(optimizer, loss, it, projections=projections, extra = True, unroll=1)(parameters, data = data, images=images)
+            rho, normals = parameters['rho'], parameters['normals']
+            return rho, normals, losses_values
+        rho_all, normals_all, losses_sum, n = jax.numpy.zeros((n_pix, n_c)), jax.numpy.zeros((n_pix, 3)), jax.numpy.zeros((it,)), 0
+        for i in range(chunck_number):
+            chunck= loading.chunck_index((i, chunck_number), n_pix)
+            args = jax.tree_map(lambda a : a[chunck], (points, images, validity_mask, light_local_direction, light_local_intensity, normals, rho))
+            with jax.default_device(jax.devices("gpu")[0]):
+                rho_chunck, normals_chunck, losses_values_chunck = minimize(*args)
+            rho_all, normals_all, losses_sum, n = rho_all.at[chunck].set(rho_chunck), normals_all.at[chunck].set(normals_chunck), losses_sum + jax.numpy.sum(losses_values_chunck, axis=0), n+rho_chunck.shape[0]
+            output(losses_sum[-1]/n, i, chunck_number-1)
+        losses_values = losses_sum / n
+        parameters = {'normals':normals_all, 'rho':rho_all}
+        data = {'points' : points, 'pixels': pixels, 'validity_mask': validity_mask[...,None,:], 'light_local_direction':light_local_direction, 'light_local_intensity':light_local_intensity}
+        losses.append(losses_values)
+        steps.append('PS')
+    if True:
+        return parameters, data, losses, steps
 
 
 def estimate_grid_light(points, normals, images, pixels, shapes, output, optimizer, mask, validity_mask, iterations, pixel_step):
@@ -137,3 +169,14 @@ def init_grid(shapes, pixels, pixel_step):
     direction_grid = jax.numpy.zeros((nx, ny ,n_im, 3)).at[:,:,:,2].set(-1)
     intensity_grid = jax.numpy.ones((nx, ny ,n_im, 1))
     return direction_grid, intensity_grid, min_range, max_range
+
+
+def init_ps_parameters(light_values, points, pixels):
+    light_local_values = {k: v for k, v in light_values.items() if k not in {'points', 'pixels','validity_mask'}} | {'points' : points, 'pixels': pixels}
+    light_model = models.model_from_parameters(light_local_values, {})
+    light, _, _ = models.get_model(light_model)
+    light_local_direction, light_local_intensity = light(light_local_values)
+    rho = scipy.interpolate.NearestNDInterpolator(light_values['pixels'], light_values['rho'])(pixels)
+    return light_local_direction, light_local_intensity, rho
+
+    

@@ -63,10 +63,10 @@ def load_image(path):
     numpy.ndarray: A floating-point image array normalized to [0,1].
     """
     if pathlib.Path(path).suffix.lower() in {'.jpg', '.jpeg', '.png'}: #given a developed image
-        image = iio.imread(path)/255.0
+        image = jax.numpy.asarray(iio.imread(path)/255.0)
     else : #given a raw image
         with rawpy.imread(path) as raw:
-            image = numpy.asarray(raw.postprocess(use_camera_wb=True, output_bps=16, no_auto_bright=True, gamma=(1,1), half_size=False, user_flip = 0)/(2**16-1))
+            image = jax.numpy.asarray(raw.postprocess(use_camera_wb=True, output_bps=16, no_auto_bright=True, gamma=(1,1), half_size=False, user_flip = 0)/(2**16-1))
     return image
 
 def extract_pixels(image, pixels, pose=None, kernel_span=5, batch_size=100):
@@ -89,9 +89,9 @@ def extract_pixels(image, pixels, pose=None, kernel_span=5, batch_size=100):
     else: #without undistorsion
         grid = lanczos.grid_from_array(jax.numpy.swapaxes(image, 0, 1))
     undisto_image, padded = jax.lax.map(grid, pixels, batch_size=batch_size)
-    return numpy.asarray(undisto_image), numpy.asarray(padded == 0)
+    return undisto_image, (padded == 0)
 
-def load_images(paths, pixels, pose=None, kernel_span=5, batch_size=100):
+def load_images(paths, pixels, pose=None, kernel_span=3, batch_size=100):
     """
     Loads multiple images and extracts pixel values from them.
 
@@ -106,11 +106,13 @@ def load_images(paths, pixels, pose=None, kernel_span=5, batch_size=100):
     tuple: A tuple containing the extracted pixel values, a mask, and the shape metadata.
     """
     n_pix, n_im, n_c = pixels.shape[:-1], len(paths), 3
-    stored = numpy.empty(n_pix + (n_c, n_im), dtype=numpy.float32)
+    stored = jax.numpy.empty(n_pix + (n_c, n_im), dtype=numpy.float32)
     for i in tqdm.tqdm(range(n_im), desc = 'loading'):
         image_path = paths[i]
         image = load_image(image_path)
-        stored[..., i], mask = extract_pixels(image, pixels, pose=pose, kernel_span=kernel_span, batch_size=batch_size)
+        with jax.default_device(jax.devices("gpu")[0]):
+            extracted, mask = extract_pixels(image, pixels, pose=pose, kernel_span=kernel_span, batch_size=batch_size)
+        stored = stored.at[..., i].set(extracted)
     return stored, mask, (n_pix, n_im, n_c)
 
 def load_mesh(path):
@@ -149,7 +151,7 @@ def load_geometry(path, pixels, pose=None):
         K, R, t = jax.numpy.asarray(pose['K']), jax.numpy.asarray(pose['R']), jax.numpy.asarray(pose['t'])
         geometry = camera.get_geometry(mesh, K, R, t)
     mask, normals, points = jax.jit(geometry)(pixels)
-    return numpy.asarray(mask, dtype=bool), numpy.asarray(normals), numpy.asarray(points)
+    return mask, normals, points
 
 def load_pose(path, aligned_image_path=None):
     """

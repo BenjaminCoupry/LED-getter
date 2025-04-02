@@ -10,14 +10,12 @@ def get_projection(parameter):
     match parameter:
         case 'rho' | 'rho_spec':
             return functools.partial(optax.projections.projection_box, lower=0, upper=1)
-        case 'light_directions' | 'light_principal_direction' | 'normals':
-            return jax.vmap(optax.projections.projection_l2_sphere, in_axes=0)
+        case 'light_directions' | 'light_principal_direction' | 'normals' | 'direction_grid':
+            return jax.numpy.vectorize(optax.projections.projection_l2_sphere, signature='(n)->(n)')
         case 'light_power' | 'light_distance' | 'mu' | 'tau_spec' | 'intensity_grid':
             return optax.projections.projection_non_negative
         case 'light_locations' | 'points' | 'pixels':
             return lambda p: p
-        case 'direction_grid':
-            return jax.vmap(jax.vmap(optax.projections.projection_l2_sphere, in_axes=0), in_axes=0)
         case _:
             raise ValueError(f"Unknown parameter: {parameter}")
 
@@ -34,7 +32,7 @@ def get_light(light):
     match light:
         case 'directional':
             return lambda values: lights.get_directional_light(
-                values['light_directions'], values['light_power']
+                values['light_directions'], values['light_power'], values['points']
             )
         case 'rail':
             return lambda values: lights.get_rail_light(
@@ -55,6 +53,8 @@ def get_light(light):
                 values['direction_grid'], values['intensity_grid'], values['pixels'],
                 values['min_range'], values['max_range']
             )
+        case 'constant':
+            return lambda values: (values['light_local_direction'], values['light_local_intensity'])
         case _:
             raise ValueError(f"Unknown light: {light}")
         
@@ -95,7 +95,11 @@ def model_from_parameters(parameters, data):
         light_type = 'punctual'
     elif all(key in values for key in ['center', 'light_distance', 'light_directions', 'light_power', 'points']):
         light_type = 'rail'
-    elif all(key in values for key in ['light_directions', 'light_power']):
+    elif all(key in values for key in ['light_directions', 'light_power', 'points']):
         light_type = 'directional'
+    elif all(key in values for key in ['light_local_direction', 'light_local_intensity']):
+        light_type = 'constant'
+    else:
+        raise ValueError(f"Unknown light")
     model = {'light': light_type, 'renderers': renderers, 'parameters': list(parameters)}
     return model
