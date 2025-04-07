@@ -88,8 +88,8 @@ def extract_pixels(image, pixels, pose=None, kernel_span=5, batch_size=100):
         grid = undistort.get_undistorted_image(K, distorsion, jax.numpy.asarray(image), kernel_span)
     else: #without undistorsion
         grid = lanczos.grid_from_array(jax.numpy.swapaxes(image, 0, 1))
-    undisto_image, padded = jax.lax.map(grid, pixels, batch_size=batch_size)
-    return undisto_image, (padded == 0)
+    undisto_image, mask = jax.lax.map(grid, pixels, batch_size=batch_size)
+    return undisto_image, mask
 
 def load_images(paths, pixels, pose=None, kernel_span=3, batch_size=100):
     """

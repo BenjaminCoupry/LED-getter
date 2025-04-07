@@ -92,7 +92,8 @@ def get_undistorted_grid(K, scale, distorsion, grid_function, kernel_span):
     def undistorted_grid(coordinates):
         transformed_coordinates = coordinates_transform(coordinates)
         resampled, padded = resampler(transformed_coordinates)
-        return resampled, padded
+        mask = padded == 0
+        return resampled, mask
     return undistorted_grid
 
 def get_undistorted_image(K, distorsion, image, kernel_span):
