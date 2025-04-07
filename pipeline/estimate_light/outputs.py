@@ -26,13 +26,14 @@ def export_images(out_path, rendered_images, ps_images_paths, images, mask, valu
             validity_image = vector_tools.build_masked(mask, values['validity_mask'][:,0,im])
             iio.imwrite(os.path.join(out_path,'images', name, 'validity.png'), validity_image)
         for renderer in rendered_images:
+            os.makedirs(os.path.join(out_path,'images', name, 'renderers'), exist_ok=True)
             simulated_image_renderer = vector_tools.build_masked(mask, rendered_images[renderer][:,:,im]/scale)
-            iio.imwrite(os.path.join(out_path,'images', name, f'{renderer}_simulated.png'),numpy.uint8(255.0*numpy.clip(simulated_image_renderer,0,1)))
-
+            iio.imwrite(os.path.join(out_path,'images', name, 'renderers',f'{renderer}.png'),numpy.uint8(255.0*numpy.clip(simulated_image_renderer,0,1)))
 
 
 def export_misc(out_path, mask, values, losses, steps):
     os.makedirs(os.path.join(out_path,'misc'), exist_ok=True)
+    iio.imwrite(os.path.join(out_path,'misc','mask.png'), mask)
     if 'normals' in values :
         normalmap = vector_tools.build_masked(mask, values['normals'])
         iio.imwrite(os.path.join(out_path,'misc','geometry_normals.png'),numpy.uint8(0.5*(normalmap*numpy.asarray([1,-1,-1])+1)*255))
@@ -50,27 +51,32 @@ def export_misc(out_path, mask, values, losses, steps):
 
 
 def export_lightmaps(out_path, light_direction, light_intensity, mask, ps_images_paths):
-    os.makedirs(os.path.join(out_path,'lights'), exist_ok=True)
+    os.makedirs(os.path.join(out_path,'lightmaps'), exist_ok=True)
     max_intensity = numpy.quantile(light_intensity, 0.9)
     for im in range(light_direction.shape[-2]):
         name = pathlib.Path(ps_images_paths[im]).stem
+        os.makedirs(os.path.join(out_path,'lightmaps', name), exist_ok=True)
         simulated_direction = vector_tools.build_masked(mask, light_direction[:,im,:])
         simulated_intensity = vector_tools.build_masked(mask, light_intensity[:, im, 0] if light_intensity.shape[-1]==1 else light_intensity[:, im, :])
-        iio.imwrite(os.path.join(out_path, 'lights', f'{name}_direction.png'),numpy.uint8(0.5*(simulated_direction*numpy.asarray([1,-1,-1])+1)*255))
-        iio.imwrite(os.path.join(out_path, 'lights',f'{name}_intensity.png'),numpy.uint8(numpy.clip(simulated_intensity / max_intensity,0,1)*255))
+        iio.imwrite(os.path.join(out_path, 'lightmaps', name, 'direction.png'),numpy.uint8(0.5*(simulated_direction*numpy.asarray([1,-1,-1])+1)*255))
+        iio.imwrite(os.path.join(out_path, 'lightmaps', name,'intensity.png'),numpy.uint8(numpy.clip(simulated_intensity / max_intensity,0,1)*255))
 
 
-def export_LP(out_path, light_direction, ps_images_paths):
-    os.makedirs(os.path.join(out_path,'LP'), exist_ok=True)
+def export_light(out_path, light_direction, light_intensity, ps_images_paths):
+    os.makedirs(os.path.join(out_path,'light'), exist_ok=True)
     L0 = (lambda x : x/numpy.linalg.norm(x,axis=-1,keepdims=True))(numpy.mean(light_direction, axis=0))
+    Phi = numpy.mean(light_intensity, axis=0)
     str_L0 = numpy.asarray(L0).astype(str)
+    str_Phi = numpy.asarray(Phi).astype(str)
     names_array = numpy.asarray(list(map(lambda p : pathlib.Path(p).stem, ps_images_paths)),dtype=str)[:,None]
-    X = numpy.concatenate([names_array,str_L0],axis=-1)
-    numpy.savetxt(os.path.join(out_path,'LP','light_direction.lp'), X, fmt = '%s', header = str(len(ps_images_paths)), delimiter = ' ', comments='')
+    XL0 = numpy.concatenate([names_array,str_L0],axis=-1)
+    XPhi = numpy.concatenate([names_array,str_Phi],axis=-1)
+    numpy.savetxt(os.path.join(out_path,'light','light_direction.lp'), XL0, fmt = '%s', header = str(len(ps_images_paths)), delimiter = ' ', comments='')
+    numpy.savetxt(os.path.join(out_path,'light','light_intensity.lp'), XPhi, fmt = '%s', header = str(len(ps_images_paths)), delimiter = ' ', comments='')
 
-def export_light(out_path, values, losses):
+def export_values(out_path, values, losses, mask):
     losses_all = numpy.concatenate(losses)
-    numpy.savez(os.path.join(out_path, 'light.npz'), losses = losses_all, **values)
+    numpy.savez(os.path.join(out_path, 'values.npz'), losses = losses_all, mask = mask, **values)
 
 def export_results(out_path, mask, parameters, data, losses, steps, images, ps_images_paths):
     values = parameters | data
@@ -79,7 +85,7 @@ def export_results(out_path, mask, parameters, data, losses, steps, images, ps_i
     light_direction, light_intensity = light(values)
     rendered_images = renderer(light_direction, light_intensity, values)
     export_lightmaps(out_path, light_direction, light_intensity, mask, ps_images_paths)
-    export_LP(out_path, light_direction, ps_images_paths)
-    export_light(out_path, values, losses)
+    export_light(out_path, light_direction, light_intensity, ps_images_paths)
+    export_values(out_path, values, losses, mask)
     export_misc(out_path, mask, values, losses, steps)
     export_images(out_path, rendered_images, ps_images_paths, images, mask, values)
