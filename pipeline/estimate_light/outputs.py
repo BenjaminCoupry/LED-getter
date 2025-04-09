@@ -23,7 +23,7 @@ def export_images(out_path, rendered_images, ps_images_paths, images, mask, valu
         simulated_image = vector_tools.build_masked(mask, rendered_image[:,:,im]/scale)
         iio.imwrite(os.path.join(out_path,'images',name,'simulated.png'),numpy.uint8(255.0*numpy.clip(simulated_image,0,1)))
         if 'validity_mask' in values:
-            validity_image = vector_tools.build_masked(mask, values['validity_mask'][:,0,im])
+            validity_image = vector_tools.build_masked(mask, jax.numpy.squeeze(values['validity_mask'][:,:,im], axis=1))
             iio.imwrite(os.path.join(out_path,'images', name, 'validity.png'), validity_image)
         for renderer in rendered_images:
             os.makedirs(os.path.join(out_path,'images', name, 'renderers'), exist_ok=True)
@@ -46,6 +46,9 @@ def export_misc(out_path, mask, values, losses, steps):
     if 'rho_spec' in values:
         albedospecmap = vector_tools.build_masked(mask, values['rho_spec'])
         iio.imwrite(os.path.join(out_path, 'misc', 'albedospecmap.png'),numpy.uint8(numpy.clip(albedospecmap/numpy.quantile(values['rho_spec'], 0.99),0,1)*255))
+    if 'validity_mask' in values:
+        validitymap = vector_tools.build_masked(mask, jax.numpy.mean(jax.numpy.squeeze(values['validity_mask'], axis=1), axis=-1))
+        iio.imwrite(os.path.join(out_path,'misc', 'validity.png'), numpy.uint8(numpy.clip(validitymap,0,1)*255.0))
     loss_plot = plots.get_losses_plot(losses, steps)
     loss_plot.write_html(os.path.join(out_path, 'misc', 'loss_plot.html'))
 

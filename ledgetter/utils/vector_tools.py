@@ -15,7 +15,7 @@ def norm_vector(v, epsilon = 1e-6):
     return norm, direction
 
 
-def build_masked(mask, data, shape=None):
+def build_masked(mask, data, shape=None, fill_value = 0):
     """
     Builds a masked array by setting elements from the data array at positions specified by the mask.
 
@@ -31,5 +31,5 @@ def build_masked(mask, data, shape=None):
     """
     if shape is None:
         shape = jax.numpy.shape(mask) + jax.numpy.shape(data)[1:]
-    filled_array = jax.numpy.zeros(shape, dtype = jax.numpy.dtype(data)).at[mask].set(data)
+    filled_array = jax.numpy.full(shape, dtype = jax.numpy.dtype(data), fill_value = fill_value).at[mask].set(data)
     return filled_array
