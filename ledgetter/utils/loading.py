@@ -10,6 +10,7 @@ import ledgetter.image.undistort as undistort
 import ledgetter.image.lanczos as lanczos
 import ledgetter.image.camera as camera
 import ledgetter.utils.meshroom as meshroom
+import ledgetter.image.raycasting as raycasting
 import imageio.v3 as iio
 
 
@@ -115,7 +116,7 @@ def load_images(paths, pixels, pose=None, kernel_span=3, batch_size=100):
         stored = stored.at[..., i].set(extracted)
     return stored, mask, (n_pix, n_im, n_c)
 
-def load_mesh(path):
+def load_mesh(path, transform):
     """
     Loads a 3D mesh from a given file path.
 
@@ -125,7 +126,7 @@ def load_mesh(path):
     Returns:
     open3d.t.geometry.TriangleMesh: The loaded and transformed 3D mesh.
     """
-    mesh = open3d.t.io.read_triangle_mesh(path).transform(numpy.diag([1,-1,-1,1]))
+    mesh = open3d.t.io.read_triangle_mesh(path).transform(numpy.diag([1,-1,-1,1])).transform(numpy.asarray(transform))
     return mesh
 
 def load_geometry(path, pixels, pose=None):
@@ -143,15 +144,18 @@ def load_geometry(path, pixels, pose=None):
     if pathlib.Path(path).suffix.lower() in {'.npz'}: #given .npz geometry
         with numpy.load(path) as loaded:
             normalmap_loaded, mask_loaded, points_loaded = loaded['normalmap'], loaded['mask'], loaded['points']
-            normalmap_grid, mask_grid, points_grid = lanczos.grid_from_array(jax.numpy.swapaxes(normalmap_loaded, 0, 1)), lanczos.grid_from_array(jax.numpy.swapaxes(mask_loaded, 0, 1)), lanczos.grid_from_array(jax.numpy.swapaxes(points_loaded, 0, 1))
-            geometry = lambda pixels : ((lambda mask, normalmap, points : (jax.numpy.logical_and(mask[0], mask[1]), normalmap[0], points[0]))(mask_grid(pixels), normalmap_grid(pixels), points_grid(pixels)))
+        normalmap_grid, mask_grid, points_grid = lanczos.grid_from_array(jax.numpy.swapaxes(normalmap_loaded, 0, 1)), lanczos.grid_from_array(jax.numpy.swapaxes(mask_loaded, 0, 1)), lanczos.grid_from_array(jax.numpy.swapaxes(points_loaded, 0, 1))
+        geometry = lambda pixels : ((lambda mask, normalmap, points : (jax.numpy.logical_and(mask[0], mask[1]), normalmap[0], points[0]))(mask_grid(pixels), normalmap_grid(pixels), points_grid(pixels)))
+        raycaster = None #TODO : raycaster from depthmap
     else : #extracting geometry from a mesh
-        mesh_path = meshroom.get_mesh_path(path) if os.path.isdir(path) else path #direct path or path to a meshroom project
-        mesh = load_mesh(mesh_path)
         K, R, t = jax.numpy.asarray(pose['K']), jax.numpy.asarray(pose['R']), jax.numpy.asarray(pose['t'])
-        geometry = camera.get_geometry(mesh, K, R, t)
+        transform = camera.get_rototranslation_matrix(R, t, to_camera=True)
+        mesh_path = meshroom.get_mesh_path(path) if os.path.isdir(path) else path #direct path or path to a meshroom project
+        mesh = load_mesh(mesh_path, transform)
+        raycaster = raycasting.get_mesh_raycaster(mesh)
+        geometry = camera.get_geometry(raycaster, K)
     mask, normals, points = jax.jit(geometry)(pixels)
-    return mask, normals, points
+    return mask, normals, points, raycaster
 
 def load_pose(path, aligned_image_path=None):
     """

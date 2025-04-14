@@ -16,8 +16,9 @@ def get_directional_light(light_directions, light_power, points):
         Tuple[Array ..., l, 3], Array ..., l, c]: Light directions and corresponding intensities.
     """
     nl, npix = light_power.shape[-1], points.shape[:-1]
-    light_intensity = jax.numpy.broadcast_to(jax.numpy.expand_dims(light_power, axis=-1), npix+(nl,1))
-    return jax.numpy.broadcast_to(light_directions, npix+(nl,3)), light_intensity
+    light_local_intensity = jax.numpy.broadcast_to(jax.numpy.expand_dims(light_power, axis=-1), npix+(nl,1))
+    light_local_directions = jax.numpy.broadcast_to(light_directions, npix+(nl,3))
+    return light_local_directions, light_local_intensity
 
 def get_rail_light(center, light_distance, light_directions, light_power, points):
     """

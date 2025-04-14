@@ -14,6 +14,19 @@ def norm_vector(v, epsilon = 1e-6):
     direction = v / jax.numpy.expand_dims(norm + epsilon, axis=-1)
     return norm, direction
 
+def to_homogeneous(v):
+    """converts vectors to homogeneous coordinates
+
+    Args:
+        v (Array ..., dim): input vectors
+
+    Returns:
+        Array ..., dim+1: homogeneous coordinates of the input vectors
+    """
+    append_term = jax.numpy.ones(jax.numpy.shape(v)[:-1]+(1,))
+    homogeneous = jax.numpy.append(v,append_term,axis=-1)
+    return homogeneous
+
 
 def build_masked(mask, data, shape=None, fill_value = 0):
     """
