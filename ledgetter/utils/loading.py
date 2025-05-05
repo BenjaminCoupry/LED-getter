@@ -10,7 +10,7 @@ import ledgetter.image.undistort as undistort
 import ledgetter.image.lanczos as lanczos
 import ledgetter.image.camera as camera
 import ledgetter.utils.meshroom as meshroom
-import ledgetter.image.raycasting as raycasting
+import ledgetter.space.raycasting as raycasting
 import imageio.v3 as iio
 
 
@@ -32,7 +32,7 @@ def chunck_index(chunck, length):
                         (n_sections-extras) * [n_each_section])
     div_points = numpy.cumsum(section_sizes)
     chunck_slice =  slice(div_points[section], div_points[section+1])
-    return chunck_slice
+    return chunck_slice, numpy.empty(length)[chunck_slice].shape[0]
 
 def get_pixelmap(size):
     """

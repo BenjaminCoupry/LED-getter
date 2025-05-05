@@ -1,37 +1,7 @@
 import jax
 import ledgetter.image.lanczos as lanczos
+import ledgetter.space.coord_systems as coord_systems
 
-def cart2pol(cartesian, center):
-    """Converts Cartesian coordinates to polar coordinates.
-
-    Args:
-        cartesian (Array ..., 2): Input Cartesian coordinates.
-        center (Array 2,): Origin of the polar coordinate system.
-
-    Returns:
-        Array ..., 2: Polar coordinates (rho, phi).
-    """
-    x, y = jax.numpy.unstack(cartesian - center, axis=-1)
-    rho = jax.numpy.sqrt(jax.numpy.square(x) + jax.numpy.square(y))
-    phi = jax.numpy.arctan2(y, x)
-    polar = jax.numpy.stack([rho, phi], axis=-1)
-    return polar
-
-def pol2cart(polar, center):
-    """Converts polar coordinates to Cartesian coordinates.
-
-    Args:
-        polar (Array ..., 2): Input polar coordinates (rho, phi).
-        center (Array 2,): Origin of the Cartesian coordinate system.
-
-    Returns:
-        Array ..., 2: Cartesian coordinates.
-    """
-    rho, phi = jax.numpy.unstack(polar, axis=-1)
-    x = rho * jax.numpy.cos(phi)
-    y = rho * jax.numpy.sin(phi)
-    cartesian = jax.numpy.stack([x, y],axis=-1) + center
-    return cartesian
 
 def get_scale(K, size):
     """Computes a scaling factor from the intrinsic matrix.
@@ -62,13 +32,13 @@ def get_coordinates_transform(K, scale, distorsion):
     """
     principal_point = K[:2,2]
     def coordinates_transform(coordinates):
-        radius, phi = jax.numpy.unstack(cart2pol(coordinates, principal_point), axis=-1)
+        radius, phi = jax.numpy.unstack(coord_systems.cartesian_to_polar(coordinates, principal_point), axis=-1)
         radius_scale = radius / scale
         distorded_radius = scale*(radius_scale*(1 
                                                 + distorsion[0]*jax.numpy.power(radius_scale, 2) 
                                                 + distorsion[1]*jax.numpy.power(radius_scale, 4) 
                                                 + distorsion[2]*jax.numpy.power(radius_scale, 6)))
-        transformed_coordinates = pol2cart(jax.numpy.stack([distorded_radius, phi],axis=-1), principal_point)
+        transformed_coordinates = coord_systems.polar_to_cartesian(jax.numpy.stack([distorded_radius, phi],axis=-1), principal_point)
         return transformed_coordinates
     return coordinates_transform
 

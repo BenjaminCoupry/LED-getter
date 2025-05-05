@@ -3,7 +3,7 @@ import jax
 import functools
 
 
-def get_gradient_descent(optimizer, loss, iterations, projections = None, output=None, unroll=10, extra = False):
+def get_gradient_descent(optimizer, loss, iterations, projections = None, output=None, unroll=10, extra = False, loop = False):
     def gradient_descent(parameters, optimizer, loss, iterations, projections, output, unroll, extra, **kwargs):
         if projections is not None:
             projector = lambda parameters : jax.tree.map(lambda parameter, projection : projection(parameter), parameters, projections)
@@ -26,7 +26,8 @@ def get_gradient_descent(optimizer, loss, iterations, projections = None, output
             return (opt_state, parameters, losses)
         opt_state = optimizer.init(parameters)
         losses = jax.numpy.zeros((iterations,))
-        _, parameters, losses = jax.lax.fori_loop(
+        f_loop = fori_loop if loop else jax.lax.fori_loop
+        _, parameters, losses = f_loop(
             0,
             iterations,
             body_fun,
@@ -37,3 +38,8 @@ def get_gradient_descent(optimizer, loss, iterations, projections = None, output
     partial_gradient_descent = functools.partial(gradient_descent, optimizer=optimizer, loss=loss, iterations=iterations, projections=projections, output=output, unroll=unroll, extra=extra)
     return partial_gradient_descent
 
+def fori_loop(lower, upper, body_fun, init_val, unroll):
+  val = init_val
+  for i in range(lower, upper):
+    val = body_fun(i, val)
+  return val

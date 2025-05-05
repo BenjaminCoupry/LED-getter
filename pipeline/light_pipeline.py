@@ -1,47 +1,12 @@
 import jax
 import ledgetter.optim.gradient_descent as gradient_descent
 import ledgetter.rendering.models as models
-
-import ledgetter.rendering.lights as lights
-import ledgetter.utils.vector_tools as vector_tools
-import ledgetter.rendering.validity as validity
-import scipy.interpolate
+import ledgetter.space.spherical_harmonics as spherical_harmonics
 import functools
-import ledgetter.utils.loading as loading
 
 
-def solve_ps(light_values, points, normals, images, pixels, shapes, output, optimizer, mask, valid_options, iterations, chunck_number = 5):
-    losses, steps = [], []
-    (n_pix, n_im, n_c) = shapes
-    light_local_direction, light_local_intensity, rho = init_ps_parameters(light_values, points, pixels)
-    if 'PS' in iterations:
-        it = iterations['PS']
-        model = {'light':'constant', 'renderers':['lambertian'], 'parameters'  : ['normals','rho']}
-        light, renderer, projections = models.get_model(model)
-        validity_mask = models.get_valid({'validity_maskers':['intensity', 'cast_shadow', 'morphology'], 'options' : valid_options}, shapes)(images=images, mask=mask, light=light, values={ 'points':points, 'light_local_direction':light_local_direction, 'light_local_intensity':light_local_intensity}, points=points)
-        loss = models.get_loss(light, renderer, delta=0.01)
-        @functools.partial(jax.numpy.vectorize, signature='(i),(c,l),(l),(l,i),(l,c),(i),(c)->(c),(i),(t)')
-        def minimize(points, images, validity_mask, light_local_direction, light_local_intensity, normals, rho):
-            data = { 'points':points, 'validity_mask': validity_mask[...,None,:], 'light_local_direction':light_local_direction, 'light_local_intensity':light_local_intensity}
-            parameters = {'normals':normals, 'rho':rho}
-            parameters, losses_values = gradient_descent.get_gradient_descent(optimizer, loss, it, projections=projections, extra = True, unroll=1)(parameters, data = data, images=images)
-            rho, normals = parameters['rho'], parameters['normals']
-            return rho, normals, losses_values
-        rho_all, normals_all, losses_sum, n = jax.numpy.zeros((n_pix, n_c)), jax.numpy.zeros((n_pix, 3)), jax.numpy.zeros((it,)), 0
-        for i in range(chunck_number):
-            chunck= loading.chunck_index((i, chunck_number), n_pix)
-            args = jax.tree_map(lambda a : a[chunck], (points, images, validity_mask, light_local_direction, light_local_intensity, normals, rho))
-            with jax.default_device(jax.devices("gpu")[0]):
-                rho_chunck, normals_chunck, losses_values_chunck = minimize(*args)
-            rho_all, normals_all, losses_sum, n = rho_all.at[chunck].set(rho_chunck), normals_all.at[chunck].set(normals_chunck), losses_sum + jax.numpy.sum(losses_values_chunck, axis=0), n+rho_chunck.shape[0]
-            output(losses_sum[-1]/n, i, chunck_number-1)
-        losses_values = losses_sum / n
-        parameters = {'normals':normals_all, 'rho':rho_all}
-        data = {'points' : points, 'pixels': pixels, 'validity_mask': validity_mask[...,None,:], 'light_local_direction':light_local_direction, 'light_local_intensity':light_local_intensity}
-        losses.append(losses_values)
-        steps.append('PS')
-    if True:
-        return parameters, data, losses, steps
+
+
 
 
 def estimate_grid_light(points, normals, images, pixels, shapes, output, optimizer, mask, valid_options, iterations, pixel_step):
@@ -57,7 +22,7 @@ def estimate_grid_light(points, normals, images, pixels, shapes, output, optimiz
         model = {'light':'grid', 'renderers':['lambertian'], 'parameters'  : list(parameters.keys())}
         light, renderer, projections = models.get_model(model)
         loss = models.get_loss(light, renderer, delta=0.01)
-        parameters, losses_values = jax.jit(gradient_descent.get_gradient_descent(optimizer, loss, it, projections=projections, output=output, extra = True, unroll=1))(parameters, data = data, images=images)
+        parameters, losses_values = jax.jit(functools.partial(gradient_descent.get_gradient_descent(optimizer, loss, it, projections=projections, output=output, extra = True, unroll=1), data=data, images=images))(parameters)
         validity_mask = models.get_valid({'validity_maskers':['intensity', 'cast_shadow', 'morphology'], 'options' : valid_options}, shapes)(images=images, mask=mask, light=light, values=(data | parameters), points=points)
         rho, direction_grid, intensity_grid = parameters['rho'], parameters['direction_grid'], parameters['intensity_grid']
         losses.append(losses_values)
@@ -78,12 +43,12 @@ def estimate_physical_light(points, normals, images, pixels, shapes, output, opt
         model = {'light':'directional', 'renderers':['lambertian'], 'parameters'  : list(parameters.keys())}
         light, renderer, projections = models.get_model(model)
         loss = models.get_loss(light, renderer, delta=0.01)
-        parameters, losses_values = jax.jit(gradient_descent.get_gradient_descent(optimizer, loss, it, projections=projections, output=output, extra = True, unroll=1))(parameters, data = data, images=images)
+        parameters, losses_values = jax.jit(functools.partial(gradient_descent.get_gradient_descent(optimizer, loss, it, projections=projections, output=output, extra = True, unroll=1), data=data, images=images))(parameters)
         validity_mask = models.get_valid({'validity_maskers':['intensity', 'cast_shadow', 'morphology'], 'options' : valid_options}, shapes)(images=images, mask=mask, light=light, values=(data | parameters), points=points)
         rho, light_directions, light_power = parameters['rho'], parameters['light_directions'], parameters['light_power']
         losses.append(losses_values)
         steps.append('directional')
-    if 'rail' not in iterations and 'punctual' not in iterations and 'LED' not in iterations and 'specular' not in iterations:
+    if 'rail' not in iterations and 'punctual' not in iterations and 'LED' not in iterations and 'harmonic' not in iterations and 'specular' not in iterations:
         return parameters, data, losses, steps
     
     light_distance, center = init_light_distance(points)
@@ -94,12 +59,12 @@ def estimate_physical_light(points, normals, images, pixels, shapes, output, opt
         model = {'light':'rail', 'renderers':['lambertian'], 'parameters'  : list(parameters.keys())}
         light, renderer, projections = models.get_model(model)
         loss = models.get_loss(light, renderer, delta=0.01)
-        parameters, losses_values = jax.jit(gradient_descent.get_gradient_descent(optimizer, loss, it, projections=projections, output=output, extra = True, unroll=1))(parameters, data = data, images=images)
+        parameters, losses_values = jax.jit(functools.partial(gradient_descent.get_gradient_descent(optimizer, loss, it, projections=projections, output=output, extra = True, unroll=1), data=data, images=images))(parameters)
         validity_mask = models.get_valid({'validity_maskers':['intensity', 'cast_shadow', 'morphology'], 'options' : valid_options}, shapes)(images=images, mask=mask, light=light, values=(data | parameters), points=points)
         rho, light_distance = parameters['rho'], parameters['light_distance']
         losses.append(losses_values)
         steps.append('rail')
-    if 'punctual' not in iterations and 'LED' not in iterations and 'specular' not in iterations:
+    if 'punctual' not in iterations and 'LED' not in iterations and 'harmonic' not in iterations and 'specular' not in iterations:
         return parameters, data, losses, steps
     
     light_locations, light_power = init_punctual_light(points, light_distance, light_directions, light_power)
@@ -110,12 +75,12 @@ def estimate_physical_light(points, normals, images, pixels, shapes, output, opt
         model = {'light':'punctual', 'renderers':['lambertian'], 'parameters' : list(parameters.keys())}
         light, renderer, projections = models.get_model(model)
         loss = models.get_loss(light, renderer, delta=0.01)
-        parameters, losses_values = jax.jit(gradient_descent.get_gradient_descent(optimizer, loss, it, projections=projections, output=output, extra = True, unroll=1))(parameters, data = data, images=images)
+        parameters, losses_values = jax.jit(functools.partial(gradient_descent.get_gradient_descent(optimizer, loss, it, projections=projections, output=output, extra = True, unroll=1), data=data, images=images))(parameters)
         validity_mask = models.get_valid({'validity_maskers':['intensity', 'cast_shadow', 'morphology'], 'options' : valid_options}, shapes)(images=images, mask=mask, light=light, values=(data | parameters), points=points)
         rho, light_locations, light_power = parameters['rho'], parameters['light_locations'], parameters['light_power']
         losses.append(losses_values)
         steps.append('punctual')
-    if 'LED' not in iterations and 'specular' not in iterations:
+    if 'LED' not in iterations and 'harmonic' not in iterations and 'specular' not in iterations:
         return parameters, data, losses, steps
     
     light_principal_direction, mu = init_led_light(shapes, points, light_locations)
@@ -126,14 +91,14 @@ def estimate_physical_light(points, normals, images, pixels, shapes, output, opt
         model = {'light':'LED', 'renderers':['lambertian'], 'parameters'  : list(parameters.keys())}
         light, renderer, projections = models.get_model(model)
         loss = models.get_loss(light, renderer, delta=0.01)
-        parameters, losses_values = jax.jit(gradient_descent.get_gradient_descent(optimizer, loss, it, projections=projections, output=output, extra = True, unroll=1))(parameters, data = data, images=images)
-        rho, light_locations, light_power, light_principal_direction, mu = parameters['rho'], parameters['light_locations'], parameters['light_power'], parameters['light_principal_direction'], parameters['mu']
+        parameters, losses_values = jax.jit(functools.partial(gradient_descent.get_gradient_descent(optimizer, loss, it, projections=projections, output=output, extra = True, unroll=1), data=data, images=images))(parameters)
         validity_mask = models.get_valid({'validity_maskers':['intensity', 'cast_shadow', 'morphology'], 'options' : valid_options}, shapes)(images=images, mask=mask, light=light, values=(data | parameters), points=points)
+        rho, light_locations, light_power, light_principal_direction, mu = parameters['rho'], parameters['light_locations'], parameters['light_power'], parameters['light_principal_direction'], parameters['mu']
         losses.append(losses_values)
         steps.append('LED')
-    if 'specular' not in iterations:
+    if  'harmonic' not in iterations and 'specular' not in iterations:
         return parameters, data, losses, steps
-    
+
     rho_spec, tau_spec = init_specular(shapes)
     if 'specular' in iterations:
         it = iterations['specular']
@@ -142,13 +107,32 @@ def estimate_physical_light(points, normals, images, pixels, shapes, output, opt
         model ={'light':'LED', 'renderers':['lambertian','specular'], 'parameters'  : list(parameters.keys())}
         light, renderer, projections = models.get_model(model)
         loss = models.get_loss(light, renderer, delta=0.01)
-        parameters, losses_values = jax.jit(gradient_descent.get_gradient_descent(optimizer, loss, it, projections=projections, output=output, extra = True, unroll=1))(parameters, data = data, images=images)
+        parameters, losses_values = jax.jit(functools.partial(gradient_descent.get_gradient_descent(optimizer, loss, it, projections=projections, output=output, extra = True, unroll=1), data=data, images=images))(parameters)
         validity_mask = models.get_valid({'validity_maskers':['intensity', 'cast_shadow', 'morphology'], 'options' : valid_options}, shapes)(images=images, mask=mask, light=light, values=(data | parameters), points=points)
         rho, light_locations, light_power, light_principal_direction, mu, rho_spec, tau_spec = parameters['rho'], parameters['light_locations'], parameters['light_power'], parameters['light_principal_direction'], parameters['mu'], parameters['rho_spec'], parameters['tau_spec']
         losses.append(losses_values)
         steps.append('specular')
+    if 'harmonic' not in iterations:
+        return parameters, data, losses, steps    
+
+    free_rotation, coefficients, indices, l_max = init_sh_light(shapes, mu, 5)
+    if 'harmonic' in iterations:
+        it = iterations['harmonic']
+        data = {'normals':normals, 'points':points, 'validity_mask':validity_mask[...,None,:], 'pixels':pixels, 'indices':indices, 'l_max':l_max}
+        parameters = {'rho': rho, 'light_locations': light_locations, 'light_power': light_power, 'light_principal_direction': light_principal_direction, 'free_rotation': free_rotation, 'coefficients':coefficients, 'rho_spec': rho_spec, 'tau_spec': tau_spec}
+        model = {'light':'harmonic', 'renderers':['lambertian', 'specular'], 'parameters'  : list(parameters.keys())}
+        light, renderer, projections = models.get_model(model)
+        loss = models.get_loss(light, renderer, delta=0.01)
+        parameters, losses_values = jax.jit(functools.partial(gradient_descent.get_gradient_descent(optimizer, loss, it, projections=projections, output=output, extra = True, unroll=1), data=data, images=images))(parameters) 
+        validity_mask = models.get_valid({'validity_maskers':['intensity', 'cast_shadow', 'morphology'], 'options' : valid_options}, shapes)(images=images, mask=mask, light=light, values=(data | parameters), points=points)
+        rho, light_locations, light_power, light_principal_direction, free_rotation, coefficients, rho_spec, tau_spec = parameters['rho'], parameters['light_locations'], parameters['light_power'], parameters['light_principal_direction'], parameters['free_rotation'], parameters['coefficients'], parameters['rho_spec'], parameters['tau_spec']
+        losses.append(losses_values)
+        steps.append('harmonic')
     if True:
         return parameters, data, losses, steps
+
+
+    
 
 
 def init_rho(images):
@@ -187,6 +171,14 @@ def init_specular(shapes):
     return rho_spec, tau_spec
 
 
+def init_sh_light(shapes, mu, l_max):
+    (n_pix, n_im, n_c) = shapes
+    goal_function = lambda teta : jax.numpy.power(jax.numpy.cos(teta[:,None]), mu)
+    coefficients, indices = spherical_harmonics.coefficients_from_colatitude(goal_function, l_max)
+    free_rotation = jax.numpy.zeros((n_im,))
+    return free_rotation, coefficients, indices, l_max
+
+
 def init_grid(shapes, pixels, pixel_step):
     (n_pix, n_im, n_c) = shapes
     min_range, max_range = jax.numpy.min(pixels, axis=0), jax.numpy.max(pixels, axis=0)
@@ -196,12 +188,3 @@ def init_grid(shapes, pixels, pixel_step):
     return direction_grid, intensity_grid, min_range, max_range
 
 
-def init_ps_parameters(light_values, points, pixels):
-    light_local_values = {k: v for k, v in light_values.items() if k not in {'points', 'pixels','validity_mask'}} | {'points' : points, 'pixels': pixels}
-    light_model = models.model_from_parameters(light_local_values, {})
-    light, _, _ = models.get_model(light_model)
-    light_local_direction, light_local_intensity = light(light_local_values)
-    rho = scipy.interpolate.NearestNDInterpolator(light_values['pixels'], light_values['rho'])(pixels)
-    return light_local_direction, light_local_intensity, rho
-
-    

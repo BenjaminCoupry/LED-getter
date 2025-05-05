@@ -1,3 +1,7 @@
+import os
+os.environ["XLA_PYTHON_CLIENT_MEM_FRACTION"] = "0.95"
+os.environ["XLA_PYTHON_CLIENT_PREALLOCATE"] = "true"
+
 import glob
 import pipeline.estimate_light.preprocessing as preprocessing
 import pipeline.estimate_light.optim_steps as optim_steps
@@ -9,9 +13,11 @@ import jax
 mode = 'LED'
 
 
+
+
 ps_images_paths = sorted(glob.glob(f'/media/bcoupry/T7 Shield/Chauvet_1203_matin/PS_02/DSC_*.NEF'))
-out_path = f'/media/bcoupry/T7 Shield/Chauvet_1203_matin/lights/PS_02/LED_local'
-step = 10
+out_path = f'/media/bcoupry/T7 Shield/Chauvet_1203_matin/lights/PS_02/LED_SH'
+step = 21
 project_path = f'/media/bcoupry/T7 Shield/Chauvet_1203_matin/meshroom/02'
 
 
@@ -23,12 +29,15 @@ if mode=='grid':
     iterations = {'lambertian':1000}
     parameters, data, losses, steps = optim_steps.estimate_grid_light(points, normals, images, pixels, shapes, output, optimizer, mask, valid_options, iterations, 800)
     outputs.export_results(out_path, mask, parameters, data, losses, steps, images, ps_images_paths)
+    #TODO TESTER ! 
 
 elif mode=='LED':
     valid_options={'local_threshold':0.5, 'global_threshold':0.1, 'dilation':2, 'erosion':9, 'raycaster' : raycaster, 'radius' : 0.0005*scale}
-    iterations = {'directional' : 600, 'rail':300, 'punctual':4000, 'LED' : 5000, 'specular':3000}
-    #del iterations['rail']
+    iterations = {'directional' : 600, 'rail':300, 'punctual':4000, 'LED' : 5000, 'specular':3000, 'harmonic':30 }
+    del iterations['specular'], iterations['directional'], iterations['rail'], iterations['punctual'], iterations['LED']
+
     parameters, data, losses, steps = optim_steps.estimate_physical_light(points, normals, images, pixels, shapes, output, optimizer, mask, valid_options, iterations)
+    
     outputs.export_results(out_path, mask, parameters, data, losses, steps, images, ps_images_paths)
 
 # del points, normals, pixels, images, validity_mask, mask, shapes, output, optimizer,  parameters, data, losses, steps
@@ -36,4 +45,4 @@ elif mode=='LED':
 #TODO : tester image PNG, avec ou sans distorsion, mesh ou sphere
 
 #TODO : tester avec une black image
-#TODO Tester les harmoniques spheriques
+#TODO Tester les harmoniques spheriques https://sphericart.readthedocs.io/en/v1.0.1/jax-api.html

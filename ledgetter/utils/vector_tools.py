@@ -1,6 +1,6 @@
 import jax
 
-def norm_vector(v, epsilon = 1e-6):
+def norm_vector(v, epsilon = 1e-8):
     """computes the norm and direction of vectors
 
     Args:
@@ -10,8 +10,9 @@ def norm_vector(v, epsilon = 1e-6):
         Array ...: norms of the vectors
         Array ..., dim: unit direction vectors
     """
-    norm = jax.numpy.linalg.norm(v, axis=-1)
-    direction = v / jax.numpy.expand_dims(norm + epsilon, axis=-1)
+    s = jax.numpy.square(v)
+    norm = jax.numpy.sqrt(jax.numpy.sum(jax.numpy.square(v), axis=-1) + epsilon)
+    direction = v / jax.numpy.expand_dims(norm, axis=-1)
     return norm, direction
 
 def to_homogeneous(v):
@@ -46,3 +47,12 @@ def build_masked(mask, data, shape=None, fill_value = 0):
         shape = jax.numpy.shape(mask) + jax.numpy.shape(data)[1:]
     filled_array = jax.numpy.full(shape, dtype = jax.numpy.dtype(data), fill_value = fill_value).at[mask].set(data)
     return filled_array
+
+def cross_product_matrix(v):
+    z, u1, u2, u3 = jax.numpy.broadcast_arrays(*((0,) + jax.numpy.unstack(v, axis=-1)))
+    result = jax.numpy.stack([
+        jax.numpy.stack([z, -u3,  u2], axis=-1),
+        jax.numpy.stack([ u3, z, -u1], axis=-1),
+        jax.numpy.stack([-u2,  u1, z], axis=-1)
+    ], axis=-2)
+    return result

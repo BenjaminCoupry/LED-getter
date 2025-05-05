@@ -1,6 +1,5 @@
 import jax
 import ledgetter.utils.vector_tools as vector_tools
-import ledgetter.image.camera as camera
 import scipy.ndimage
 
 def intensity_validity(images, local_threshold, global_threshold):

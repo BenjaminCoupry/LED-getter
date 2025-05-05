@@ -6,6 +6,9 @@ import ledgetter.rendering.validity as validity
 import functools
 
 
+def is_pixelwise(value):
+    return value in {'rho', 'rho_spec', 'normals', 'points', 'pixels', 'validity_mask'}
+
 def get_validity_masker(validity_masker):
     match validity_masker:
         case 'intensity':
@@ -25,20 +28,6 @@ def get_valid(valid, shapes) :
             validity_mask = get_validity_masker(validity_masker)(validity_mask, valid['options'], **kwargs)
         return validity_mask
     return valid_function
-######################################"" TODO passer valid_options dans optim_steps, et a chaque etape, choisir les validity_maskers correspondant
-
-
-#TODO combiner les deux
-def _get_valid(valid, mode):
-    postprocess = lambda mask, validity_mask : validity.morphological_validity(validity_mask, mask, valid['morphology']['dilation'], valid['morphology']['erosion'])
-    match mode:
-        case 'intensity':
-            return lambda mask, images : postprocess(mask, validity.intensity_validity(images, valid['local_threshold'], valid['global_threshold']))
-        case 'cast_shadow':
-            return lambda mask, light, values : postprocess(mask, validity.cast_shadow_validity(valid['raycaster'], light(values)[0] , values['points'], valid['radius']))
-        case _:
-            raise ValueError(f"Unknown valid {valid['mode']}")
-
 
 def get_projection(parameter):
     match parameter:
@@ -48,7 +37,7 @@ def get_projection(parameter):
             return jax.numpy.vectorize(optax.projections.projection_l2_sphere, signature='(n)->(n)')
         case 'light_power' | 'light_distance' | 'mu' | 'tau_spec' | 'intensity_grid':
             return optax.projections.projection_non_negative
-        case 'light_locations' | 'points' | 'pixels':
+        case 'light_locations' | 'points' | 'pixels' | 'coefficients' | 'free_rotation':
             return lambda p: p
         case _:
             raise ValueError(f"Unknown parameter: {parameter}")
@@ -82,6 +71,12 @@ def get_light(light):
                 values['light_locations'], values['light_power'], 
                 values['light_principal_direction'], values['mu'], values['points']
             )
+        case 'harmonic':
+            return lambda values: lights.get_harmonic_light(
+                values['light_locations'], values['light_power'],
+                values['light_principal_direction'], values['free_rotation'], values['coefficients'],
+                values['l_max'], values['points']
+            )
         case 'grid':
             return lambda values: lights.get_grid_light(
                 values['direction_grid'], values['intensity_grid'], values['pixels'],
@@ -107,8 +102,9 @@ def get_loss(light, renderer, delta=0.01):
         renders = renderer(light_directions, light_intensity, values)
         render = jax.tree_util.tree_reduce(lambda x, y : x + y, renders)
         errors = optax.losses.huber_loss(render, targets = images, delta = delta)
-        loss_value = jax.numpy.nan_to_num(jax.numpy.mean(errors, where = values['validity_mask']), nan=0)
-        return loss_value
+        loss_value_nan = jax.numpy.mean(errors, where = values['validity_mask'])
+        loss_value = jax.numpy.nan_to_num(loss_value_nan, nan=0) #TODO introduce nantonum inside the sum
+        return loss_value_nan
     return loss
 
 
@@ -122,6 +118,8 @@ def model_from_parameters(parameters, data):
     light_type = None
     if all(key in values for key in ['direction_grid', 'intensity_grid', 'pixels']):
         light_type = 'grid'
+    elif all(key in values for key in ['light_locations', 'light_power', 'light_principal_direction', 'free_rotation', 'coefficients', 'points']):
+        light_type = 'harmonic'
     elif all(key in values for key in ['light_locations', 'light_power', 'light_principal_direction', 'mu', 'points']):
         light_type = 'LED'
     elif all(key in values for key in ['light_locations', 'light_power', 'points']):

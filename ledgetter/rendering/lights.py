@@ -1,6 +1,9 @@
 import jax
 import ledgetter.utils.vector_tools as vector_tools
 import ledgetter.image.lanczos as lanczos
+import ledgetter.space.rotations as rotations
+import ledgetter.space.coord_systems as coord_systems
+import ledgetter.space.spherical_harmonics as spherical_harmonics
 
 
 def get_directional_light(light_directions, light_power, points):
@@ -87,3 +90,12 @@ def get_grid_light(direction_grid, intensity_grid, pixels, min_range, max_range,
     light_local_directions =  vector_tools.norm_vector(light_local_directions_unnormed)[1]
     return light_local_directions, light_local_intensity
     
+
+def get_harmonic_light(light_locations, light_power, light_principal_direction, free_rotation, coefficients, l_max, points):
+    light_local_distances, light_local_directions = vector_tools.norm_vector(light_locations - jax.numpy.expand_dims(points, axis=-2))
+    Ri = rotations.rotation_between_vectors(light_principal_direction, jax.numpy.asarray([0,0,1]), free_rotation)
+    light_local_directions_led_referential = jax.numpy.einsum('lui, ...li -> ...lu', Ri, -light_local_directions)
+    anisotropy = jax.nn.relu(jax.numpy.moveaxis(spherical_harmonics.sh_function(light_local_directions_led_referential, coefficients.T[:,None,None,:], int(l_max)), 0, -1))
+    light_local_power = jax.numpy.expand_dims(light_power, axis=-2) / jax.numpy.square(light_local_distances)
+    light_local_intensity = jax.numpy.einsum('...l, ...lc ->...lc', light_local_power, anisotropy)
+    return light_local_directions, light_local_intensity

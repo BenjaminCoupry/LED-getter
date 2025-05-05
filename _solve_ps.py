@@ -10,10 +10,10 @@ import os
 
 view_id, mesh_id = 2, 2
 ps_images_paths = sorted(glob.glob(f'/media/bcoupry/T7 Shield/Chauvet_1203_matin/PS_{view_id:02d}/DSC_*.NEF'))
-out_path = f'/media/bcoupry/T7 Shield/Chauvet_1203_matin/photo_stereo/shadow_PS_{view_id:02d}'
+out_path = f'/media/bcoupry/T7 Shield/Chauvet_1203_matin/photo_stereo/SH_PS_{view_id:02d}'
 step = 4
 project_path = f'/media/bcoupry/T7 Shield/Chauvet_1203_matin/meshroom/{mesh_id:02d}'
-light_path = f'/media/bcoupry/T7 Shield/Chauvet_1203_matin/lights/PS_{view_id:02d}/LED_local/values.npz'
+light_path = f'/media/bcoupry/T7 Shield/Chauvet_1203_matin/lights/PS_{view_id:02d}/LED_SH/values.npz'
 
 
 
