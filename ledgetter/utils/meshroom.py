@@ -1,6 +1,7 @@
 import numpy
 import glob
 import os
+import ledgetter.utils.files as files
 
 
 def format_intrinsic(intrinsic):
@@ -69,7 +70,7 @@ def unpack_sfm(sfm):
     poses = {pose['poseId'] : pose for pose in sfm['poses']}
     views = {view['viewId'] : view for view in sfm['views']}
     intrinsics = {intrinsic['intrinsicId'] : intrinsic for intrinsic in sfm['intrinsics']}
-    names_ids = {os.path.realpath(view['path']) : view['viewId'] for view in sfm['views']}
+    names_ids = {view['path'] : view['viewId'] for view in sfm['views']}
     return poses, views, intrinsics, names_ids
 
 def get_sfm_path(project_path):
@@ -132,8 +133,7 @@ def get_view_id(sfm, image_path):
         int: View ID corresponding to one of the image paths.
     """
     _, _, _, names_ids = unpack_sfm(sfm)
-    if type(image_path) is not list :
-        image_path = [image_path]
-    valid_path = next(filter(lambda name : os.path.realpath(name) in image_path, names_ids.keys()))
-    view_id = names_ids[os.path.realpath(valid_path)]
+    file_matches = files.find_similar_path(list(names_ids.keys()), image_path)[0]
+    valid_path = file_matches[0][0] if len(file_matches)==1 else None
+    view_id = names_ids[valid_path]
     return view_id

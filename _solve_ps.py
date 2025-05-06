@@ -1,7 +1,7 @@
 import glob
-import pipeline.estimate_light.preprocessing as preprocessing
-import pipeline.estimate_light.optim_steps as optim_steps
-import pipeline.estimate_light.outputs as outputs
+import pipeline.preprocessing as preprocessing
+import pipeline.light_pipeline as light_pipeline
+import pipeline.outputs as outputs
 import optax
 import numpy
 import jax
@@ -30,7 +30,7 @@ with jax.default_device(jax.devices("cpu")[0]):
         valid_options={'local_threshold':0.5, 'global_threshold':0.1, 'dilation':0, 'erosion':30, 'raycaster' : raycaster, 'radius' : 0.0001*scale}
 
         iterations = {'PS':3000}
-        parameters, data, losses, steps = optim_steps.solve_ps(values, points, normals, images, pixels, shapes, output, optimizer, mask, valid_options, iterations, chunck_number = 100)
+        parameters, data, losses, steps = light_pipeline.solve_ps(values, points, normals, images, pixels, shapes, output, optimizer, mask, valid_options, iterations, chunck_number = 100)
         ps_values = parameters | data
         x, y = ps_values['pixels'][:,0], ps_values['pixels'][:,1]
         rho_global, normals_global, mask_global= rho_global.at[y, x].set(ps_values['rho']), normals_global.at[y, x].set(ps_values['normals']), mask_global.at[y, x].set(True)

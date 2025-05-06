@@ -30,11 +30,17 @@ def estimate_grid_light(points, normals, images, pixels, shapes, output, optimiz
     if True:
         return parameters, data, losses, steps
 
+import ledgetter.utils.plots as plots
 def estimate_physical_light(points, normals, images, pixels, shapes, output, optimizer, mask, valid_options, iterations):
     losses, steps = [], []
 
     rho = init_rho(images)
     light_directions, light_power = init_directional_light(shapes)
+
+
+    # fig = plots.plot_directional(light_power, light_directions, None)
+    # fig.show()
+
     validity_mask = models.get_valid({'validity_maskers':['intensity', 'morphology'], 'options' : valid_options}, shapes)(images=images, mask=mask)
     if 'directional' in iterations:
         it = iterations['directional']
