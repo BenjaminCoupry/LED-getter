@@ -94,14 +94,14 @@ def plot_directional(light_power, light_directions, mask, albedo, names=None):
         y= y0 + light_directions[:,1]*r,
         mode='markers+text' if names is not None else 'markers',
         marker=dict(
-            size=r/10,
+            size=10,
             color=rel_power,
             colorscale='solar',
             colorbar=dict(title='Relative Power'),
             cmin=0,
             cmax=1,
             symbol='star',
-            line=dict(width=0.05*r/5, color='black')
+            line=dict(width=1.5, color='black')
         ),
         name='Lights',
         text=names,
@@ -112,7 +112,7 @@ def plot_directional(light_power, light_directions, mask, albedo, names=None):
         x=[None], y=[None],  # point invisible
         mode='markers',
         marker=dict(
-            size=r/5,
+            size=10,
             color='gray',
             symbol='square'
         ),
@@ -126,9 +126,9 @@ def plot_directional(light_power, light_directions, mask, albedo, names=None):
         mode='markers',
         marker=dict(
             symbol='cross',
-            size= r / 10,
+            size= 10,
             color='black',
-            line=dict(width=0.05*r/5)
+            line=dict(width=1.5)
         ),
         name='Origin',
         showlegend=True
