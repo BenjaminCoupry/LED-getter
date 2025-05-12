@@ -12,6 +12,9 @@ import ledgetter.image.camera as camera
 import ledgetter.utils.meshroom as meshroom
 import ledgetter.space.raycasting as raycasting
 import imageio.v3 as iio
+import jax.export
+import ledgetter.utils.functions as functions
+import ledgetter.rendering.models as models
 
 
 def chunck_index(chunck, length):
@@ -179,3 +182,17 @@ def load_pose(path, aligned_image_path=None):
         view_id = meshroom.get_view_id(sfm, aligned_image_path) #
         pose = meshroom.get_pose(sfm, view_id)
     return pose
+
+
+def load_light(path):
+    if pathlib.Path(path).suffix.lower() in {'.jax'}:
+        with open(path, "rb") as f:
+            serialized = f.read()
+        light = functions.filter_args(lambda points, pixels : jax.export.deserialize(serialized).call(points, pixels))
+    elif pathlib.Path(path).suffix.lower() in {'.npz'}:
+        with numpy.load(path) as light_archive:
+            light_values = dict(light_archive)
+        light_model = models.model_from_parameters(light_values, {})
+        light_raw = models.get_light(light_model['light'])
+        light = functions.filter_args(jax.jit(lambda points, pixels : light_raw(**(light_values | {'points':points, 'pixels':pixels}))))
+    return light

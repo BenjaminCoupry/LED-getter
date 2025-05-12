@@ -21,22 +21,23 @@ def get_ps_minimizer(optimizer, it):
     return vectorized
 
 
-def solve_ps(light_values, points, normals, images, pixels, shapes, output, optimizer, mask, valid_options, iterations, chunck_number = 5):
+def solve_ps(light_dict, points, normals, images, pixels, shapes, output, optimizer, mask, valid_options, iterations, chunck_number = 100):
     losses, steps = [], []
     (n_pix, n_im, n_c) = shapes
-    local_values, light = init_ps_parameters(light_values, points, pixels, normals)
+    
+    rho, light = init_ps_parameters(light_dict, pixels)
     if 'PS' in iterations:
         it = iterations['PS']
         minimize = get_ps_minimizer(optimizer, it)
         validity_mask_all, rho_all, normals_all, losses_sum, n = jax.numpy.zeros((n_pix, n_im)), jax.numpy.zeros((n_pix, n_c)), jax.numpy.zeros((n_pix, 3)), jax.numpy.zeros((it,)), 0
         for i in range(chunck_number):
             chunck, chunck_n_pix = loading.chunck_index((i, chunck_number), n_pix)
-            chuncked_values = {k:(local_values[k][chunck] if models.is_pixelwise(k) else local_values[k]) for k in local_values}
-            chuncked_light_local_direction, chuncked_light_local_intensity = light(chuncked_values)
-            chuncked_images, chuncked_mask = images[chunck], jax.numpy.zeros(mask.shape, dtype=bool).at[mask].set(jax.numpy.zeros(n_pix, dtype=bool).at[chunck].set(True))
-            chuncked_validity_mask = models.get_valid({'validity_maskers':['intensity', 'cast_shadow', 'morphology'], 'options' : valid_options}, (chunck_n_pix, n_im, n_c))(images=chuncked_images, mask=chuncked_mask, light=light, values=chuncked_values, points=chuncked_values['points'])
+            chuncked_normals, chuncked_points, chuncked_rho, chuncked_images, chuncked_pixels = normals[chunck], points[chunck], rho[chunck], images[chunck], pixels[chunck]
+            chuncked_mask = jax.numpy.zeros(mask.shape, dtype=bool).at[mask].set(jax.numpy.zeros(n_pix, dtype=bool).at[chunck].set(True))
+            chuncked_light_local_direction, chuncked_light_local_intensity = light(chuncked_points, chuncked_pixels)
+            chuncked_validity_mask = models.get_valid({'validity_maskers':['cast_shadow', 'morphology'], 'options' : valid_options}, (chunck_n_pix, n_im, n_c))(images=chuncked_images, mask=chuncked_mask, light=light, points = chuncked_points, pixels = chuncked_pixels)
             with jax.default_device(jax.devices("gpu")[0]):
-                rho_chunck, normals_chunck, losses_values_chunck = minimize(chuncked_values['points'], chuncked_images, chuncked_validity_mask, chuncked_light_local_direction, chuncked_light_local_intensity, chuncked_values['normals'], chuncked_values['rho'])
+                rho_chunck, normals_chunck, losses_values_chunck = minimize(chuncked_points, chuncked_images, chuncked_validity_mask, chuncked_light_local_direction, chuncked_light_local_intensity, chuncked_normals, chuncked_rho)
             validity_mask_all, rho_all, normals_all, losses_sum, n = validity_mask_all.at[chunck].set(chuncked_validity_mask), rho_all.at[chunck].set(rho_chunck), normals_all.at[chunck].set(normals_chunck), losses_sum + jax.numpy.nansum(losses_values_chunck, axis=0), n+chunck_n_pix
             output(losses_sum[-1]/n, i, chunck_number-1)
         losses_values = losses_sum / n
@@ -47,9 +48,7 @@ def solve_ps(light_values, points, normals, images, pixels, shapes, output, opti
     if True:
         return parameters, data, losses, steps
     
-def init_ps_parameters(light_values, points, pixels, normals):
-    rho = scipy.interpolate.NearestNDInterpolator(light_values['pixels'], light_values['rho'])(pixels)
-    local_values = {k: v for k, v in light_values.items() if k not in {'points', 'pixels', 'rho', 'normals' }} | {'points' : points, 'pixels': pixels, 'rho':rho, 'normals' : normals}
-    light_model = models.model_from_parameters(local_values, {})
-    light = models.get_light(light_model['light'])
-    return local_values, light
+def init_ps_parameters(light_dict, pixels):
+    light = light_dict['light']
+    rho = scipy.interpolate.NearestNDInterpolator(light_dict['pixels'], light_dict['rho'])(pixels)
+    return rho, light

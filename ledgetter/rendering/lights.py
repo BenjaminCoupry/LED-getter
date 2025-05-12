@@ -89,6 +89,9 @@ def get_grid_light(direction_grid, intensity_grid, pixels, min_range, max_range,
     light_local_intensity = jax.numpy.moveaxis(jax.lax.map(grid_interpolator, jax.numpy.moveaxis(intensity_grid, 2, 0)), 0, -2)
     light_local_directions =  vector_tools.norm_vector(light_local_directions_unnormed)[1]
     return light_local_directions, light_local_intensity
+
+def get_constant_light(light_local_direction, light_local_intensity):
+    return light_local_direction, light_local_intensity
     
 
 def get_harmonic_light(light_locations, light_power, light_principal_direction, free_rotation, coefficients, l_max, points):

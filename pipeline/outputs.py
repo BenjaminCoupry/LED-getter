@@ -8,8 +8,18 @@ import ledgetter.utils.vector_tools as vector_tools
 import ledgetter.utils.plots as plots
 import os
 import pathlib
+import jax.export
 
 
+def get_serialized_light_function(light, values):
+    lambda_expression = lambda points, pixels : light(**(values | {'points':points, 'pixels':pixels}))
+    my_scope = jax.export.SymbolicScope()
+    s1 = jax.export.symbolic_shape("batch,3", scope=my_scope)
+    s2 = jax.export.symbolic_shape("batch,2", scope=my_scope)
+    args_specs = (jax.ShapeDtypeStruct(s1, dtype=jax.numpy.float32), jax.ShapeDtypeStruct(s2, dtype=jax.numpy.int32))
+    exported = jax.export.export(jax.jit(lambda_expression), platforms=['cuda','cpu'])(* args_specs)
+    serialized = exported.serialize()
+    return serialized
 
 def export_images(out_path, rendered_images, ps_images_paths, images, mask, values):
     os.makedirs(os.path.join(out_path,'images'), exist_ok=True)
@@ -65,7 +75,7 @@ def export_lightmaps(out_path, light_direction, light_intensity, mask, ps_images
         iio.imwrite(os.path.join(out_path, 'lightmaps', name,'intensity.png'),numpy.uint8(numpy.clip(simulated_intensity / max_intensity,0,1)*255))
 
 
-def export_light(out_path, light_direction, light_intensity, ps_images_paths):
+def export_light(out_path, light, values, light_direction, light_intensity, ps_images_paths):
     os.makedirs(os.path.join(out_path,'light'), exist_ok=True)
     L0 = (lambda x : x/numpy.linalg.norm(x,axis=-1,keepdims=True))(numpy.mean(light_direction, axis=0))
     Phi = numpy.mean(light_intensity, axis=0)
@@ -76,6 +86,13 @@ def export_light(out_path, light_direction, light_intensity, ps_images_paths):
     XPhi = numpy.concatenate([names_array,str_Phi],axis=-1)
     numpy.savetxt(os.path.join(out_path,'light','light_direction.lp'), XL0, fmt = '%s', header = str(len(ps_images_paths)), delimiter = ' ', comments='')
     numpy.savetxt(os.path.join(out_path,'light','light_intensity.lp'), XPhi, fmt = '%s', header = str(len(ps_images_paths)), delimiter = ' ', comments='')
+    try:
+        serialized = get_serialized_light_function(light, values)
+        with open(os.path.join(out_path,'light','light_function.jax'), "wb") as f:
+            f.write(serialized)
+    except Exception as e :
+        print(f"Serialization exception : {e}, skipping light serialization")
+
 
 def export_values(out_path, values, losses, mask):
     losses_all = numpy.concatenate(losses)
@@ -85,10 +102,10 @@ def export_results(out_path, mask, parameters, data, losses, steps, images, ps_i
     values = parameters | data
     model = models.model_from_parameters(parameters, data)
     light, renderer, _ = models.get_model(model)
-    light_direction, light_intensity = light(values)
-    rendered_images = renderer(light_direction, light_intensity, values)
+    light_direction, light_intensity = light(**values)
+    rendered_images = renderer(light_direction, light_intensity, **values)
     export_lightmaps(out_path, light_direction, light_intensity, mask, ps_images_paths)
-    export_light(out_path, light_direction, light_intensity, ps_images_paths)
+    export_light(out_path, light, values, light_direction, light_intensity, ps_images_paths)
     export_values(out_path, values, losses, mask)
     export_misc(out_path, mask, values, losses, steps)
     export_images(out_path, rendered_images, ps_images_paths, images, mask, values)

@@ -4,7 +4,9 @@ import optax
 import ledgetter.utils.loading as loading
 import ledgetter.utils.meshroom as meshroom
 import ledgetter.rendering.validity as validity
-
+import numpy
+import imageio.v3 as iio
+import os
 
 
 
@@ -21,3 +23,12 @@ def preprocess(ps_images_paths, sliced=slice(None), meshroom_project=None, align
     output = logs.get_tqdm_output(0)
     optimizer = optax.adam(0.001) #optax.lbfgs()
     return points, normals, pixels, images, raycaster, mask, (images.shape[0], n_im, n_c), output, optimizer, scale
+
+def prepare_ps(light_path, ps_images_paths):
+    shape = iio.improps(ps_images_paths[0]).shape
+    with numpy.load(os.path.join(light_path, 'values.npz')) as light_values:
+        light_pixels, light_rho = light_values['pixels'], light_values['rho']
+    path = next(filter(lambda p : os.path.isfile(p), [os.path.join(light_path, 'light','light_function.jax'), os.path.join(light_path, 'values.npz')]))
+    light = loading.load_light(path)
+    light_dict = {'pixels':light_pixels, 'rho':light_rho, 'light':light}
+    return light_dict, shape
