@@ -72,9 +72,11 @@ def get_valid(valid, shapes) :
         validity_mask = jax.numpy.ones((n_pix, n_im),dtype=bool)
         for validity_masker_i in valid['validity_maskers']:
             validity_masker = get_validity(validity_masker_i)
-            light_local_directions = kwargs['light'](**kwargs)[0] if ('raycaster' in valid['options']) and (validity_masker_i == 'cast_shadow')  else None
-            validity_mask_i = validity_masker(**(valid['options'] | kwargs | {'validity_mask' : validity_mask, 'light_local_directions' : light_local_directions}))
-            validity_mask = jax.numpy.logical_and(validity_mask, validity_mask_i)
+            skip_valid = (validity_masker_i == 'cast_shadow') and (('light' not in kwargs) or ('raycaster' not in valid['options']) or (valid['options']['raycaster'] is None))
+            if not skip_valid:
+                light_local_directions = kwargs['light'](**kwargs)[0] if (validity_masker_i == 'cast_shadow')  else None
+                validity_mask_i = validity_masker(**(valid['options'] | kwargs | {'validity_mask' : validity_mask, 'light_local_directions' : light_local_directions}))
+                validity_mask = jax.numpy.logical_and(validity_mask, validity_mask_i)
         return validity_mask
     return valid_function
 
