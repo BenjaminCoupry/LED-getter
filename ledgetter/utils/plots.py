@@ -81,17 +81,19 @@ def get_losses_plot(losses, steps):
 def plot_directional(light_power, light_directions, mask, albedo, names=None):
     rel_power = light_power / jax.numpy.max(light_power)
     albedomap = vector_tools.build_masked(mask, jax.numpy.uint8(255*jax.numpy.clip(albedo/jax.numpy.quantile(albedo,0.95), 0, 1)), fill_value=jax.numpy.nan)
-    x0, y0, r = mask.shape[1]/2, mask.shape[0]/2, min(mask.shape[1], mask.shape[0])/2
+    H, W = mask.shape[:2]
     image = go.Heatmap(
         z=jax.numpy.mean(albedomap, axis=-1),
         colorscale='gray',
         zmin=0,
         zmax=255,
         showscale=False,
+        xaxis='x',
+        yaxis='y', name = 'Albedo Map'
     )
     lights = go.Scatter(
-        x= x0 + light_directions[:,0]*r,
-        y= y0 + light_directions[:,1]*r,
+        x= light_directions[:,0],
+        y= light_directions[:,1],
         mode='markers+text' if names is not None else 'markers',
         marker=dict(
             size=10,
@@ -105,6 +107,8 @@ def plot_directional(light_power, light_directions, mask, albedo, names=None):
         ),
         name='Lights',
         text=names,
+        xaxis='x2',
+        yaxis='y2',
         showlegend=True
     )
 
@@ -116,13 +120,15 @@ def plot_directional(light_power, light_directions, mask, albedo, names=None):
             color='gray',
             symbol='square'
         ),
+        xaxis='x',
+        yaxis='y',
         name='Albedo Map',
         showlegend=True
     )
 
     origin_marker = go.Scatter(
-        x=[x0],
-        y=[y0],
+        x=[0],
+        y=[0],
         mode='markers',
         marker=dict(
             symbol='cross',
@@ -131,30 +137,56 @@ def plot_directional(light_power, light_directions, mask, albedo, names=None):
             line=dict(width=1.5)
         ),
         name='Origin',
+        xaxis='x2',
+        yaxis='y2',
         showlegend=True
     )
+
+    theta = jax.numpy.linspace(0, 2 * jax.numpy.pi, 200)
+    unit_circle = go.Scatter(
+        x=jax.numpy.cos(theta),
+        y=jax.numpy.sin(theta),
+        mode='lines',
+        xaxis='x2',
+        yaxis='y2',
+        line=dict(color='blue', dash='dot'),
+        name='Unit Circle',
+        showlegend=True
+    )
+
+
 
     layout = go.Layout(
-        xaxis=dict(title='X', showgrid=False, scaleanchor='y'),
-        yaxis=dict(title='Y', showgrid=False),
         title='Directional Light',
-        legend=dict(x=0, y=1),
+        xaxis=dict(title='X (image)', range=[0, W], showgrid=False, domain=[0, 1],),
+        yaxis=dict(title='Y (image)', range=[H, 0], scaleanchor='x', showgrid=False, domain=[0, 1],),
+
+        # Axes pour directions
+        xaxis2=dict(
+            title='X (direction)',
+            range=[-1, 1],
+            overlaying='x',
+            scaleanchor='y2',
+            side='top',
+            tickmode='array',
+            tickvals=[-1, -0.5, 0, 0.5, 1],
+            ticktext=['-1', '-0.5', '0', '0.5', '1'],
+            showgrid=False
+        ),
+        yaxis2=dict(
+            title=None,
+            range=[1, -1],
+            overlaying='y',
+            visible = False,
+            showgrid=False
+        ),
+        legend=dict(x=0, y=1)
     )
-    fig = go.Figure(data=[image, image_legend, origin_marker, lights], layout=layout)
+
+    fig = go.Figure(data=[image, image_legend, origin_marker, lights, unit_circle], layout=layout)
     
-    fig.add_shape(type="circle",
-        xref="x", yref="y",
-        x0=x0-r, y0=y0-r,
-        x1=x0+r, y1=y0+r,
-        opacity=0.2,
-        fillcolor="blue",
-        line_color="black",
-        name='Unit Sphere',
-        showlegend=True
-    )
-
-
     return fig
+
 
 def plot_punctual(light_power, light_locations, mask, points, albedo, names=None):
     rel_power = light_power / np.max(light_power)
