@@ -146,10 +146,11 @@ def load_geometry(path, pixels, pose=None):
     """
     if pathlib.Path(path).suffix.lower() in {'.npz'}: #given .npz geometry
         with numpy.load(path) as loaded:
-            normalmap_loaded, mask_loaded, points_loaded = loaded['normalmap'], loaded['mask'], loaded['points']
+            normalmap_loaded, mask_loaded, points_loaded = loaded['normalmap'].astype(numpy.float32), loaded['mask'], loaded['points'].astype(numpy.float32)
         normalmap_grid, mask_grid, points_grid = lanczos.grid_from_array(jax.numpy.swapaxes(normalmap_loaded, 0, 1)), lanczos.grid_from_array(jax.numpy.swapaxes(mask_loaded, 0, 1)), lanczos.grid_from_array(jax.numpy.swapaxes(points_loaded, 0, 1))
         geometry = lambda pixels : ((lambda mask, normalmap, points : (jax.numpy.logical_and(mask[0], mask[1]), normalmap[0], points[0]))(mask_grid(pixels), normalmap_grid(pixels), points_grid(pixels)))
         raycaster = None #TODO : raycaster from depthmap
+        backend = 'cpu'
     else : #extracting geometry from a mesh
         K, R, t = jax.numpy.asarray(pose['K']), jax.numpy.asarray(pose['R']), jax.numpy.asarray(pose['t'])
         transform = camera.get_rototranslation_matrix(R, t, to_camera=True)
@@ -157,7 +158,8 @@ def load_geometry(path, pixels, pose=None):
         mesh = load_mesh(mesh_path, transform)
         raycaster = raycasting.get_mesh_raycaster(mesh)
         geometry = camera.get_geometry(raycaster, K)
-    mask, normals, points = jax.jit(geometry)(pixels)
+        backend = jax.default_backend()
+    mask, normals, points = jax.jit(geometry, backend = backend)(pixels)
     return mask, normals, points, raycaster
 
 def load_pose(path, aligned_image_path=None):
