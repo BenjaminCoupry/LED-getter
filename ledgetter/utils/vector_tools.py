@@ -56,3 +56,7 @@ def cross_product_matrix(v):
         jax.numpy.stack([-u2,  u1, z], axis=-1)
     ], axis=-2)
     return result
+
+def partial_stop_gradients(v, mask):
+    result = v.at[mask].set(jax.lax.stop_gradient(v[mask]))
+    return result

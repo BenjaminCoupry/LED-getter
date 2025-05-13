@@ -98,7 +98,8 @@ def get_harmonic_light(light_locations, light_power, light_principal_direction, 
     light_local_distances, light_local_directions = vector_tools.norm_vector(light_locations - jax.numpy.expand_dims(points, axis=-2))
     Ri = rotations.rotation_between_vectors(light_principal_direction, jax.numpy.asarray([0,0,1]), free_rotation)
     light_local_directions_led_referential = jax.numpy.einsum('lui, ...li -> ...lu', Ri, -light_local_directions)
-    anisotropy = jax.nn.relu(jax.numpy.moveaxis(spherical_harmonics.sh_function(light_local_directions_led_referential, coefficients.T[:,None,None,:], int(l_max)), 0, -1))
+    g_coefficients = vector_tools.partial_stop_gradients(coefficients, 0)
+    anisotropy = jax.nn.relu(jax.numpy.moveaxis(spherical_harmonics.sh_function(light_local_directions_led_referential, g_coefficients.T[:,None,None,:], int(l_max)), 0, -1))
     light_local_power = jax.numpy.expand_dims(light_power, axis=-2) / jax.numpy.square(light_local_distances)
     light_local_intensity = jax.numpy.einsum('...l, ...lc ->...lc', light_local_power, anisotropy)
     return light_local_directions, light_local_intensity

@@ -12,9 +12,6 @@ import jax
 
 mode = 'LED'
 
-#TODO stop_gradients sur les C0 de SH en option
-#TODO the serialization of light : https://docs.jax.dev/en/latest/export/export.html
-
 
 ps_images_paths = sorted(glob.glob(f'/media/bcoupry/T7 Shield/Chauvet_1203_matin/PS_02/DSC_*.NEF'))
 out_path = f'/media/bcoupry/T7 Shield/Chauvet_1203_matin/lights/PS_02/LED_SH'
@@ -34,9 +31,8 @@ if mode=='grid':
 
 elif mode=='LED':
     valid_options={'local_threshold':0.5, 'global_threshold':0.1, 'dilation':2, 'erosion':9, 'raycaster' : raycaster, 'radius' : 0.0005*scale}
-    iterations = {'directional' : 600, 'rail':300, 'punctual':4000, 'LED' : 500, 'specular':3000, 'harmonic':30 } #5000
-    #del iterations['harmonic']
-    del iterations['specular'],  iterations['rail'], iterations['punctual'],  iterations['harmonic'], #iterations['LED'],
+    iterations = {'directional' : 600, 'rail':300, 'punctual':4000, 'LED' : 500, 'specular':3000, 'harmonic':5000 }
+    #del iterations['specular'],  iterations['rail'], iterations['punctual'],  iterations['LED'], iterations['directional'], iterations['harmonic']
 
     parameters, data, losses, steps = light_pipeline.estimate_physical_light(points, normals, images, pixels, shapes, output, optimizer, mask, valid_options, iterations)
     
