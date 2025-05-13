@@ -15,7 +15,7 @@ def preprocess(ps_images_paths, sliced=slice(None), meshroom_project=None, align
     pixelmap = loading.get_pixelmap(pose if pose else ps_images_paths[0])[sliced]
     geometric_mask, normalmap, pointmap, raycaster  = loading.load_geometry(geometry_path if geometry_path else meshroom_project, pixelmap, pose)
     geom_images, undisto_mask, (_, n_im, n_c) = loading.load_images((ps_images_paths + [black_image_path]) if black_image_path else ps_images_paths, pixelmap[geometric_mask], pose, batch_size = 1000)
-    geom_images = jax.numpy.maximum(0, geom_images[...,:-1] - geom_images[...,-1:]) if black_image_path else geom_images
+    geom_images, n_im = (jax.numpy.maximum(0, geom_images[...,:-1] - geom_images[...,-1:]), n_im-1) if black_image_path else (geom_images, n_im)
     geom_points, geom_normals, geom_pixels = pointmap[geometric_mask], normalmap[geometric_mask], pixelmap[geometric_mask], 
     points, normals, pixels, images = geom_points[undisto_mask],geom_normals[undisto_mask], geom_pixels[undisto_mask], geom_images[undisto_mask]
     scale = jax.numpy.max(jax.numpy.linalg.norm(points - jax.numpy.mean(points, axis=0),axis=-1))
