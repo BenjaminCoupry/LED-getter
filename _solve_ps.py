@@ -26,7 +26,7 @@ light_path = f'/media/bcoupry/T7 Shield/Chauvet_1203_matin/lights/PS_{view_id:02
 
 with jax.default_device(jax.devices("cpu")[0]):
     light_dict, shape = preprocessing.prepare_ps(light_path, ps_images_paths)
-    rho_global, normals_global, mask_global = jax.numpy.zeros(shape+(3,)), jax.numpy.zeros(shape+(3,)), jax.numpy.zeros(shape, dtype=bool)
+    rho_global, normals_global, validity_global, mask_global = jax.numpy.zeros(shape+(3,)), jax.numpy.zeros(shape+(3,)), jax.numpy.zeros(shape), jax.numpy.zeros(shape, dtype=bool)
     for i in range(step*step):
         u, v = jax.numpy.unravel_index(i, (step, step))
         sliced=(slice(u,None, step), slice(v,None, step))
@@ -36,12 +36,13 @@ with jax.default_device(jax.devices("cpu")[0]):
         parameters, data, losses, steps = ps_pipeline.solve_ps(light_dict, points, normals, images, pixels, shapes, output, optimizer, mask, valid_options, iterations, chunck_number = 100)
         ps_values = parameters | data
         x, y = ps_values['pixels'][:,0], ps_values['pixels'][:,1]
-        rho_global, normals_global, mask_global= rho_global.at[y, x].set(ps_values['rho']), normals_global.at[y, x].set(ps_values['normals']), mask_global.at[y, x].set(True)
+        rho_global, normals_global, validity_global, mask_global= rho_global.at[y, x].set(ps_values['rho']), normals_global.at[y, x].set(ps_values['normals']), validity_global.at[y, x].set(jax.numpy.mean(ps_values['validity_mask'], axis=(-1,-2))), mask_global.at[y, x].set(True)
 
     os.makedirs(out_path, exist_ok=True)
     numpy.savez(os.path.join(out_path, 'photo_stereo.npz'), normalmap=normals_global, albedomap=rho_global, mask=mask_global)
     iio.imwrite(os.path.join(out_path, 'normalmap_ps.png'),jax.numpy.uint8(0.5*(normals_global*jax.numpy.asarray([1,-1,-1])+1)*mask_global[:,:,None]*255))
     iio.imwrite(os.path.join(out_path, 'albedomap_ps.png'),jax.numpy.uint8(jax.numpy.clip(rho_global/jax.numpy.quantile(rho_global[mask_global], 0.99),0,1)*255))
+    iio.imwrite(os.path.join(out_path, 'validity_ps.png'), jax.numpy.uint8(jax.numpy.clip(validity_global,0,1)*255))
     iio.imwrite(os.path.join(out_path, 'mask_ps.png'), mask_global)
 
     del ps_values, points, normals, pixels, images, mask, shapes, output, optimizer,  parameters, data, losses, steps, rho_global, normals_global, mask_global
