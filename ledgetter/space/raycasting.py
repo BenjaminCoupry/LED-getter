@@ -3,9 +3,9 @@ import open3d
 import numpy
 
 def get_mesh_raycaster(mesh):
+    scene = open3d.t.geometry.RaycastingScene()
+    scene.add_triangles(mesh)
     def o3d_render(rays):
-        scene = open3d.t.geometry.RaycastingScene(nthreads=15)
-        scene.add_triangles(mesh)
         ans = scene.cast_rays(open3d.core.Tensor(rays))
         normals_world = ans['primitive_normals'].numpy()
         intersection_time = ans['t_hit'].numpy()
