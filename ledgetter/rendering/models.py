@@ -7,8 +7,6 @@ import functools
 import ledgetter.utils.functions as functions
 
 
-def is_pixelwise(value):
-    return value in {'rho', 'rho_spec', 'normals', 'points', 'pixels', 'validity_mask'}
 
 def get_projection(parameter):
     match parameter: #TODO : project 'coefficients' to have the C0 equal between channels

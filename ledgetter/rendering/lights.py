@@ -91,10 +91,51 @@ def get_grid_light(direction_grid, intensity_grid, pixels, min_range, max_range,
     return light_local_directions, light_local_intensity
 
 def get_constant_light(light_local_direction, light_local_intensity):
+    """
+    Returns the local direction and intensity of a constant light source.
+    Parameters:
+        light_local_direction (jax.numpy.ndarray): An array of shape (..., P, L, 3) 
+              representing the normalized directions from the points to the light sources
+        light_local_intensity (jax.numpy.ndarray): An array of shape (..., P, L, C) 
+              representing the computed light intensity at the points for each light source.
+    Returns:
+        tuple: A tuple containing the light's local direction and intensity.
+    """
+
     return light_local_direction, light_local_intensity
     
 
 def get_harmonic_light(light_locations, light_power, light_principal_direction, free_rotation, coefficients, l_max, points):
+    """
+    Computes the harmonic light intensity and directions for a set of light sources.
+
+    This function calculates the local light directions and intensities at given points
+    based on the spherical harmonics representation of light anisotropy, light power, 
+    and distances from the light sources.
+
+    Args:
+        light_locations (jax.numpy.ndarray): An array of shape (..., L, 3) representing 
+            the 3D positions of the light sources.
+        light_power (jax.numpy.ndarray): An array of shape (..., L) representing the power 
+            of each light source.
+        light_principal_direction (jax.numpy.ndarray): An array of shape (..., L, 3) representing 
+            the principal direction of each light source.
+        free_rotation (jax.numpy.ndarray): An array of shape (..., L) representing 
+            the free rotation of the light sources.
+        coefficients (jax.numpy.ndarray): An array of shape (M, C) representing the 
+            spherical harmonics coefficients for light anisotropy.
+        l_max (int): The maximum degree of spherical harmonics to consider.
+        points (jax.numpy.ndarray): An array of shape (..., P, 3) representing the 3D positions 
+            of the points where light intensity is computed.
+
+    Returns:
+        tuple: A tuple containing:
+            - light_local_directions (jax.numpy.ndarray): An array of shape (..., P, L, 3) 
+              representing the normalized directions from the points to the light sources.
+            - light_local_intensity (jax.numpy.ndarray): An array of shape (..., P, L, C) 
+              representing the computed light intensity at the points for each light source.
+    """
+
     light_local_distances, light_local_directions = vector_tools.norm_vector(light_locations - jax.numpy.expand_dims(points, axis=-2))
     Ri = rotations.rotation_between_vectors(light_principal_direction, jax.numpy.asarray([0,0,1]), free_rotation)
     light_local_directions_led_referential = jax.numpy.einsum('lui, ...li -> ...lu', Ri, -light_local_directions)

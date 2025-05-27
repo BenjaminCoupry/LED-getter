@@ -49,6 +49,17 @@ def build_masked(mask, data, shape=None, fill_value = 0):
     return filled_array
 
 def cross_product_matrix(v):
+    """
+    Constructs the cross-product matrix (also known as the skew-symmetric matrix) 
+    for a given 3D vector `v`. The cross-product matrix is a 3x3 matrix that can 
+    be used to compute the cross product of `v` with another vector via matrix 
+    multiplication.
+    Parameters:
+        v (...,3): Array of shape (3,) representing a 3D vector.
+    Returns:
+        Array ...,3,3: A 3x3 skew-symmetric matrix corresponding to the input vector `v`.
+    """
+
     z, u1, u2, u3 = jax.numpy.broadcast_arrays(*((0,) + jax.numpy.unstack(v, axis=-1)))
     result = jax.numpy.stack([
         jax.numpy.stack([z, -u3,  u2], axis=-1),
@@ -58,5 +69,18 @@ def cross_product_matrix(v):
     return result
 
 def partial_stop_gradients(v, mask):
+    """
+    Applies partial stop-gradient operation to a vector `v` based on a boolean mask.
+    This function prevents gradients from being computed for the elements of `v`
+    where the corresponding value in `mask` is `True`. The remaining elements
+    will retain their gradients during backpropagation.
+    Args:
+        v (jax.numpy.ndarray): The input vector for which gradients are to be partially stopped.
+        mask (jax.numpy.ndarray): A boolean mask of the same shape as `v`. Elements with `True`
+                                   in the mask will have their gradients stopped.
+    Returns:
+        jax.numpy.ndarray: A new vector with gradients stopped for the masked elements.
+    """
+
     result = v.at[mask].set(jax.lax.stop_gradient(v[mask]))
     return result

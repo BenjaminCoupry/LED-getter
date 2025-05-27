@@ -16,11 +16,15 @@ mode = 'LED'
 ps_images_paths = sorted(glob.glob(f'/media/bcoupry/T7 Shield/Chauvet_1203_matin/PS_02/DSC_*.NEF'))
 out_path = f'/media/bcoupry/T7 Shield/Chauvet_1203_matin/lights/PS_02/LED_SH'
 step = 21
-project_path = f'/media/bcoupry/T7 Shield/Chauvet_1203_matin/meshroom/02'
+project_path = f'/media/bcoupry/T7 Shield/ChauvetJCHMVPS/meshroom'
 
 
 sliced = (slice(None,None, step), slice(None,None, step))
 points, normals, pixels, images, raycaster, mask, shapes, output, optimizer, scale = preprocessing.preprocess(ps_images_paths, sliced=sliced, meshroom_project=project_path)
+
+
+
+
 
 if mode=='grid':
     valid_options = {'local_threshold':0.5, 'global_threshold':0.1, 'dilation':2, 'erosion':9, 'raycaster' : raycaster, 'radius' : 0.0005*scale}

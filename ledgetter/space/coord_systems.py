@@ -32,10 +32,3 @@ def polar_to_cartesian(polar, center):
     cartesian = jax.numpy.stack([x, y],axis=-1) + center
     return cartesian
 
-def cartesian_to_spherical(cartesian, center):
-    x, y, z = jax.numpy.unstack(cartesian - center, axis=-1)
-    rho = jax.numpy.sqrt(jax.numpy.square(x) + jax.numpy.square(y) + jax.numpy.square(z))
-    theta = jax.numpy.arccos(jax.numpy.clip(z / rho, -1.0, 1.0))
-    phi = jax.numpy.mod(jax.numpy.arctan2(y, x), 2 * jax.numpy.pi)
-    spherical = jax.numpy.stack([rho, theta, phi], axis=-1)
-    return spherical
