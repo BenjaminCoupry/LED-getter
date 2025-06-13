@@ -27,23 +27,18 @@ def estimate_ps(iterations, values, images, mask, raycaster, shapes, output, opt
     
     def treatement(state, chunck, images, **values):
         chunck_elems = images.shape[0]
-        chunck_shapes = (chunck_elems,)+shapes[1:]
-        losses_sum, n, _ = state
-        #chunck_mask = jax.numpy.zeros(mask.shape, dtype=bool).at[mask].set(jax.numpy.zeros(jax.numpy.sum(mask), dtype=bool).at[chunck].set(True))
-        values = values_generator.merge_light_values(values, light_dict['light_values'])
-        values = values_generator.generate_missing_values(values, model['parameters'] | model['data'], chunck_shapes, images, light = light_dict['light'])
+        chunck_shapes = (chunck_elems,)+shapes[1:] 
+        values = values_generator.merge_and_generate(values, light_dict['light_values'], model['parameters'] | model['data'], chunck_shapes, images, light = light_dict['light'])
         validity_mask = validity_masker(shapes = chunck_shapes, images=images, light=light, **values)
         with jax.default_device(jax.devices("gpu")[0]):
-            losses_values_ps, updated_values = minimize(images, validity_mask, **values)
-        values = values | updated_values | {'validity_mask' : validity_mask}
-        chuncked_values = {k: v for k, v in values.items() if models.is_pixelwise(k)} 
-        atomic_values = {k: v for k, v in values.items() if not models.is_pixelwise(k)}
+            (losses_values_ps, ), updated_values = minimize(images, validity_mask, **values)
+        chuncked_values, atomic_values = chuncks.split_dict(values | updated_values | {'validity_mask' : validity_mask}, models.is_pixelwise)
+        losses_sum, n, _ = state
         state, metric = (losses_sum + jax.numpy.nansum(losses_values_ps, axis=0), n+chunck_elems, atomic_values), losses_sum[-1]/n
         return chuncked_values, state, metric
     
     state = (jax.numpy.zeros((iterations,)), 0, None)
-    chunckable_args = {k: v for k, v in (values | {'images' : images}).items() if models.is_pixelwise(k)}
-    atomic_args = {k: v for k, v in values.items() if not models.is_pixelwise(k)}
+    chunckable_args, atomic_args = chuncks.split_dict(values | {'images' : images}, models.is_pixelwise)
     chuncked_values, state = chuncks.chunckwise_treatement(treatement, state, chunckable_args, atomic_args, chunck_number, output=output)
     validity_mask = chuncked_values['validity_mask']
     losses_sum, n, atomic_values = state

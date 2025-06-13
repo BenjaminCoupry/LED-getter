@@ -84,3 +84,8 @@ def partial_stop_gradients(v, mask):
 
     result = v.at[mask].set(jax.lax.stop_gradient(v[mask]))
     return result
+
+def all_except(function, array, keep_axis):
+    axes = tuple(ax for ax in range(array.ndim) if ax != keep_axis)
+    result = function(array, axis=axes)
+    return result

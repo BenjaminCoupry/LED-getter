@@ -5,7 +5,7 @@ import itertools
 def get_chuncker(n_chuncks):
     n_chuncks_t = n_chuncks if isinstance(n_chuncks, tuple) else (n_chuncks,)
     chuncker = itertools.product(*map(lambda n : map(lambda i : slice(int(i), None, int(n)), range(n)), tuple(n_chuncks_t)))
-    total_chuncks = jax.numpy.prod(n_chuncks)
+    total_chuncks = jax.numpy.int32(jax.numpy.prod(jax.numpy.asarray(n_chuncks)))
     return chuncker, total_chuncks
 
 def chunckwise_treatement(treatement, state, chunckable_args, atomic_args, n_chuncks, output=None, elementary_shape = None):
@@ -24,6 +24,16 @@ def chunckwise_treatement(treatement, state, chunckable_args, atomic_args, n_chu
             output(metric, i, total_chuncks-1)
     return results, state
 
+def split_dict(dictionary, predicate):
+    if isinstance(predicate, set):
+        predicate_set = predicate
+        predicate = lambda k : k in predicate_set
+    if isinstance(predicate, tuple) and len(predicate)==2 and isinstance(predicate[0], set) and isinstance(predicate[1], set):
+        in_set, out_set = predicate
+        predicate = lambda k : True if k in in_set else (False if k in out_set else None)
+    true_part = {k: v for k, v in dictionary.items() if predicate(k) is True}
+    false_part = {k: v for k, v in dictionary.items() if predicate(k) is False}
+    return true_part, false_part
 
 # def compute_nd_sections(shape, n_sections):
 #     shape_arr = jax.numpy.asarray(shape)

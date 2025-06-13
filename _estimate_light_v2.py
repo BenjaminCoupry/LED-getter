@@ -35,7 +35,7 @@ out_path = f'/media/bcoupry/T7 Shield/ChauvetJCHMVPS/light/{pattern}_1'
 project_path = f'/media/bcoupry/T7 Shield/ChauvetJCHMVPS/meshroom'
 
 
-sliced = next(chuncks.get_chuncker((step, step)))
+sliced = next(chuncks.get_chuncker((step, step))[0])
 values, images, mask, raycaster, shapes, full_shape, output, optimizer, scale, light_dict, light_names =\
       preprocessing.preprocess(ps_images_paths, sliced=sliced, meshroom_project=project_path, loaded_light_folder=loaded_light_folder, load_light_function=True)
 light_dict, validity_mask = light_estimation.estimate_light(it, pattern, values, images, mask, raycaster, shapes, output, optimizer, scale, light_dict)

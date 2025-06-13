@@ -2,6 +2,7 @@ import jax
 import ledgetter.space.spherical_harmonics as spherical_harmonics
 import ledgetter.models.models as models
 import scipy.interpolate
+import ledgetter.utils.chuncks as chuncks
 import ledgetter.utils.functions as functions
 
 registry = {}
@@ -12,15 +13,17 @@ def merge_light_values(values, light_values):
     merged_values =  global_light_values | local_light_values | values
     return merged_values
 
-
 def generate_missing_values(values, values_to_generate, shapes, images, light=None):
     generated_values =  functions.execute_generators(registry, values_to_generate, values, shapes=shapes, images=images, light=light)
     return generated_values
 
+def merge_and_generate(values, light_values, values_to_generate, shapes, images, light=None):
+    merged_values = merge_light_values(values, light_values)
+    generated_values = generate_missing_values(merged_values, values_to_generate, shapes, images, light=light)
+    return generated_values
 
 def split_parameters_data(values, wanted_params, wanted_data):
-    parameters = {k: v for k, v in values.items() if k in wanted_params}
-    data = {k: v for k, v in values.items() if k in wanted_data}
+    parameters, data = chuncks.split_dict(values, (set(wanted_params), set(wanted_data)))
     return parameters, data
 
 @functions.generator(inputs=[], outputs=['rho'], registry=registry)

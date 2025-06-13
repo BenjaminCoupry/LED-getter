@@ -16,8 +16,7 @@ import functools
 
 def estimate_light(iterations, pattern, values, images, mask, raycaster, shapes, output, optimizer, scale, light_dict, delta=0.01):
     model, validity_masker = defaults.get_default(pattern, raycaster, scale)
-    values = values_generator.merge_light_values(values, light_dict['light_values'])
-    values = values_generator.generate_missing_values(values, model['parameters'] | model['data'], shapes, images)
+    values = values_generator.merge_and_generate(values, light_dict['light_values'], model['parameters'] | model['data'], shapes, images)
     parameters, data = values_generator.split_parameters_data(values, model['parameters'], model['data'])
     validity_mask = validity_masker(shapes = shapes, images=images, mask=mask, light=light_dict['light'], **data, **parameters)
     light, renderer, projections = models.get_model(model)
