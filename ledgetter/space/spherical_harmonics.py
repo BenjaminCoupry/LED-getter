@@ -1,5 +1,5 @@
 import jax
-import functools
+import ledgetter.space.rotations as rotations
 import sphericart.jax
 
 
@@ -22,24 +22,15 @@ def spherical_harmonic_indices(l_max):
 
 
 def sh_function(cartesian, coefficients, l_max):
-    """
-    Compute the spherical harmonics function value for given Cartesian coordinates,
-    coefficients, and maximum degree.
-    Args:
-        cartesian (array-like): A 2D array of Cartesian coordinates with shape (N, 3),
-            where N is the number of points.
-        coefficients (array-like): An array of coefficients with shape (M),
-            where M corresponds to the number of spherical harmonics terms.
-        l_max (int): The maximum degree of the spherical harmonics.
-    Returns:
-        jax.numpy.ndarray: A 1D array of computed values with shape (N), where each
-            value corresponds to the spherical harmonics function evaluated at the
-            respective Cartesian coordinate.
-    """
-
     base = sphericart.jax.spherical_harmonics(cartesian, int(l_max))
     elements = coefficients * base
     value = jax.numpy.sum(elements, axis=-1)
+    return value
+
+def oriented_sh_function(cartesian, principal_direction, free_rotation, coefficients, l_max):
+    Ri = rotations.rotation_between_vectors(principal_direction, jax.numpy.asarray([0,0,1]), free_rotation)
+    local_cartesian = jax.numpy.einsum('...ui, ...i -> ...u', Ri, cartesian)
+    value = sh_function(local_cartesian, coefficients, l_max)
     return value
 
 def coefficients_from_colatitude(f, l_max, steps=100, domain = 0.99):
@@ -61,12 +52,7 @@ def coefficients_from_colatitude(f, l_max, steps=100, domain = 0.99):
         An array of spherical harmonics coefficients with shape `(n_coefficients, output_dim)`, where `n_coefficients`
         is determined by `l_max` and `output_dim` is the dimensionality of the output of `f`.
     indices : jax.numpy.ndarray
-        An array of indices corresponding to the spherical harmonics coefficients, with shape `(n_coefficients, 3)`.
-    Notes:
-    ------
-    - This function uses the `sphericart.jax.spherical_harmonics` library to compute the spherical harmonics basis.
-    - The function assumes that the spherical harmonics with m=0 are sufficient for the given function `f`.
-    - The least squares solution is computed using `jax.numpy.linalg.lstsq`.
+        An array of indices corresponding to the spherical harmonics coefficients, with shape `(n_coefficients, c)`.
     """
     teta = jax.numpy.linspace(0, domain*(jax.numpy.pi/2), steps)
     points = jax.numpy.stack([jax.numpy.zeros(teta.shape[0]), jax.numpy.sin(teta), jax.numpy.cos(teta)], axis=-1)

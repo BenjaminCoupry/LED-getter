@@ -1,6 +1,6 @@
 import jax
 import numpy
-import ledgetter.rendering.models as models
+import ledgetter.models.models as models
 import ledgetter.rendering.renderers as renderers
 import matplotlib.pyplot as plt
 import imageio.v3 as iio
@@ -8,104 +8,130 @@ import ledgetter.utils.vector_tools as vector_tools
 import ledgetter.utils.plots as plots
 import os
 import pathlib
-import jax.export
+import json
+import ledgetter.utils.functions as functions
+import ledgetter.utils.light_serialization as light_serialization
 
 
-def get_serialized_light_function(light, values):
-    lambda_expression = lambda points, pixels : light(**(values | {'points':points, 'pixels':pixels}))
-    my_scope = jax.export.SymbolicScope()
-    s1 = jax.export.symbolic_shape("batch,3", scope=my_scope)
-    s2 = jax.export.symbolic_shape("batch,2", scope=my_scope)
-    args_specs = (jax.ShapeDtypeStruct(s1, dtype=jax.numpy.float32), jax.ShapeDtypeStruct(s2, dtype=jax.numpy.int32))
-    exported = jax.export.export(jax.jit(lambda_expression), platforms=['cuda','cpu'])(* args_specs)
-    serialized = exported.serialize()
-    return serialized
-
-def export_images(out_path, rendered_images, ps_images_paths, images, mask, values):
-    os.makedirs(os.path.join(out_path,'images'), exist_ok=True)
+def export_images(path, light_dict, images, validity_mask, mask, light_names):
+    os.makedirs(path, exist_ok=True)
+    light_direction, light_intensity = light_dict['light'](**light_dict['light_values'])
+    rendered_images = models.get_grouped_renderer(light_dict['model']['renderers'])(light_direction, light_intensity, **light_dict['light_values'])
     rendered_image = jax.tree_util.tree_reduce(lambda x, y : x + y, rendered_images)
+    delta = jax.numpy.abs(images-rendered_image)
     scale = numpy.quantile(images, 0.98)
     for im in range(images.shape[-1]):
-        name = pathlib.Path(ps_images_paths[im]).stem
-        os.makedirs(os.path.join(out_path,'images', name), exist_ok=True)
+        name = light_names[im]
+        os.makedirs(os.path.join(path, name), exist_ok=True)
         ref_image = vector_tools.build_masked(mask, images[:,:,im]/scale)
-        iio.imwrite(os.path.join(out_path,'images',name,'reference.png'),numpy.uint8(255.0*numpy.clip(ref_image,0,1)))
+        iio.imwrite(os.path.join(path, name,'reference.png'),numpy.uint8(255.0*numpy.clip(ref_image,0,1)))
         simulated_image = vector_tools.build_masked(mask, rendered_image[:,:,im]/scale)
-        iio.imwrite(os.path.join(out_path,'images',name,'simulated.png'),numpy.uint8(255.0*numpy.clip(simulated_image,0,1)))
-        if 'validity_mask' in values:
-            validity_image = vector_tools.build_masked(mask, jax.numpy.squeeze(values['validity_mask'][:,:,im], axis=1))
-            iio.imwrite(os.path.join(out_path,'images', name, 'validity.png'), validity_image)
+        iio.imwrite(os.path.join(path, name, 'simulated.png'),numpy.uint8(255.0*numpy.clip(simulated_image,0,1)))
+        delta_image = vector_tools.build_masked(mask, delta[:,:,im]/scale)
+        iio.imwrite(os.path.join(path, name, 'delta.png'),numpy.uint8(255.0*numpy.clip(delta_image,0,1)))
+        validity_image = vector_tools.build_masked(mask, validity_mask[:,im])
+        iio.imwrite(os.path.join(path, name, 'validity.png'), validity_image)
         for renderer in rendered_images:
-            os.makedirs(os.path.join(out_path,'images', name, 'renderers'), exist_ok=True)
+            os.makedirs(os.path.join(path, name, 'renderers'), exist_ok=True)
             simulated_image_renderer = vector_tools.build_masked(mask, rendered_images[renderer][:,:,im]/scale)
-            iio.imwrite(os.path.join(out_path,'images', name, 'renderers',f'{renderer}.png'),numpy.uint8(255.0*numpy.clip(simulated_image_renderer,0,1)))
+            iio.imwrite(os.path.join(path, name, 'renderers',f'{renderer}.png'),numpy.uint8(255.0*numpy.clip(simulated_image_renderer,0,1)))
 
-
-def export_misc(out_path, mask, values, losses, steps):
-    os.makedirs(os.path.join(out_path,'misc'), exist_ok=True)
-    iio.imwrite(os.path.join(out_path,'misc','mask.png'), mask)
-    if 'normals' in values :
-        normalmap = vector_tools.build_masked(mask, values['normals'])
-        iio.imwrite(os.path.join(out_path,'misc','geometry_normals.png'),numpy.uint8(0.5*(normalmap*numpy.asarray([1,-1,-1])+1)*255))
-    if 'points' in values:
-        zmap = vector_tools.build_masked(mask, 1- ((values['points'][:,-1] - numpy.min(values['points'][:,-1])) / (numpy.max(values['points'][:,-1]) - numpy.min(values['points'][:,-1]))))
-        iio.imwrite(os.path.join(out_path,'misc','geometry_zmap.png'),numpy.uint8((numpy.clip(zmap,0,1))*255))
-    if 'rho' in values:
-        albedomap = vector_tools.build_masked(mask, values['rho'])
-        iio.imwrite(os.path.join(out_path, 'misc', 'albedomap.png'),numpy.uint8(numpy.clip(albedomap/numpy.quantile(values['rho'], 0.99),0,1)*255))
-    if 'rho_spec' in values:
-        albedospecmap = vector_tools.build_masked(mask, values['rho_spec'])
-        iio.imwrite(os.path.join(out_path, 'misc', 'albedospecmap.png'),numpy.uint8(numpy.clip(albedospecmap/numpy.quantile(values['rho_spec'], 0.99),0,1)*255))
-    if 'validity_mask' in values:
-        validitymap = vector_tools.build_masked(mask, jax.numpy.mean(jax.numpy.squeeze(values['validity_mask'], axis=1), axis=-1))
-        iio.imwrite(os.path.join(out_path,'misc', 'validity.png'), numpy.uint8(numpy.clip(validitymap,0,1)*255.0))
-    loss_plot = plots.get_losses_plot(losses, steps)
-    loss_plot.write_html(os.path.join(out_path, 'misc', 'loss_plot.html'))
-
-
-def export_lightmaps(out_path, light_direction, light_intensity, mask, ps_images_paths):
-    os.makedirs(os.path.join(out_path,'lightmaps'), exist_ok=True)
+def export_lightmaps(path, light_dict, mask, light_names):
+    os.makedirs(path, exist_ok=True)
+    light_direction, light_intensity = light_dict['light'](**light_dict['light_values'])
     max_intensity = numpy.quantile(light_intensity, 0.9)
     for im in range(light_direction.shape[-2]):
-        name = pathlib.Path(ps_images_paths[im]).stem
-        os.makedirs(os.path.join(out_path,'lightmaps', name), exist_ok=True)
+        name = light_names[im]
+        os.makedirs(os.path.join(path, name), exist_ok=True)
         simulated_direction = vector_tools.build_masked(mask, light_direction[:,im,:])
         simulated_intensity = vector_tools.build_masked(mask, light_intensity[:, im, 0] if light_intensity.shape[-1]==1 else light_intensity[:, im, :])
-        iio.imwrite(os.path.join(out_path, 'lightmaps', name, 'direction.png'),numpy.uint8(0.5*(simulated_direction*numpy.asarray([1,-1,-1])+1)*255))
-        iio.imwrite(os.path.join(out_path, 'lightmaps', name,'intensity.png'),numpy.uint8(numpy.clip(simulated_intensity / max_intensity,0,1)*255))
+        iio.imwrite(os.path.join(path, name, 'direction.png'),numpy.uint8(0.5*(simulated_direction*numpy.asarray([1,-1,-1])+1)*255))
+        iio.imwrite(os.path.join(path, name,'intensity.png'),numpy.uint8(numpy.clip(simulated_intensity / max_intensity,0,1)*255))
 
 
-def export_light(out_path, light, values, light_direction, light_intensity, ps_images_paths):
-    os.makedirs(os.path.join(out_path,'light'), exist_ok=True)
-    L0 = (lambda x : x/numpy.linalg.norm(x,axis=-1,keepdims=True))(numpy.mean(light_direction, axis=0))
-    Phi = numpy.mean(light_intensity, axis=0)
-    str_L0 = numpy.asarray(L0).astype(str)
-    str_Phi = numpy.asarray(Phi).astype(str)
-    names_array = numpy.asarray(list(map(lambda p : pathlib.Path(p).stem, ps_images_paths)),dtype=str)[:,None]
+def export_values(path, light_dict, mask, validity_mask):
+    os.makedirs(path, exist_ok=True)
+    light_values = light_dict['light_values']
+    numpy.savez(os.path.join(path, 'values.npz'), mask = mask, validity_mask=validity_mask, **light_values)
+    os.makedirs(os.path.join(path, 'images'), exist_ok=True)
+    if 'normals' in light_values :
+        normalmap = vector_tools.build_masked(mask, light_values['normals'])
+        iio.imwrite(os.path.join(path, 'images', 'geometry_normals.png'),numpy.uint8(0.5*(normalmap*numpy.asarray([1,-1,-1])+1)*255))
+    if 'points' in light_values:
+        zscale = 1- ((light_values['points'][:,-1] - numpy.min(light_values['points'][:,-1])) / (numpy.max(light_values['points'][:,-1]) - numpy.min(light_values['points'][:,-1])))
+        zmap = vector_tools.build_masked(mask, zscale)
+        iio.imwrite(os.path.join(path, 'images', 'geometry_zmap.png'),numpy.uint8((numpy.clip(zmap,0,1))*255))
+    if 'rho' in light_values:
+        albedomap = vector_tools.build_masked(mask, light_values['rho'])
+        iio.imwrite(os.path.join(path, 'images', 'albedomap.png'),numpy.uint8(numpy.clip(albedomap/numpy.quantile(light_values['rho'], 0.99),0,1)*255))
+    if 'rho_spec' in light_values:
+        albedospecmap = vector_tools.build_masked(mask, light_values['rho_spec'])
+        iio.imwrite(os.path.join(path, 'images', 'albedospecmap.png'),numpy.uint8(numpy.clip(albedospecmap/numpy.quantile(light_values['rho_spec'], 0.99),0,1)*255))
+
+def export_losses(path, light_dict):
+    losses = light_dict['losses']
+    os.makedirs(path, exist_ok=True)
+    names, losses_values = zip(*losses)
+    numpy.savez(os.path.join(path, 'losses.npz'), steps_order=numpy.asarray(names, dtype=object), **{k: v for k,v in losses})
+    loss_plot = plots.plot_losses(losses_values, names)
+    loss_plot.write_html(os.path.join(path, 'loss_plot.html'))
+
+def export_model(path, light_dict):
+    model = light_dict['model']
+    os.makedirs(path, exist_ok=True)
+    def replace_sets_with_lists(obj):
+        if isinstance(obj, dict):
+            return {k: replace_sets_with_lists(v) for k, v in obj.items()}
+        elif isinstance(obj, list) or isinstance(obj, set):
+            return [replace_sets_with_lists(elem) for elem in obj]
+        elif isinstance(obj, tuple):
+            return tuple(replace_sets_with_lists(elem) for elem in obj)
+        else:
+            return obj
+    with open(os.path.join(path, 'model.json'), 'w', encoding='utf-8') as f:
+        json.dump(model, f, ensure_ascii=False, indent=2, default=lambda o: list(o) if isinstance(o, set) else o)
+
+def export_light(path, light_dict, light_names):
+    os.makedirs(os.path.join(path), exist_ok=True)
+    light_direction, light_intensity = light_dict['light'](**light_dict['light_values'])
+    L0, Phi = vector_tools.norm_vector(jax.numpy.mean(light_direction, axis=0))[1], numpy.mean(light_intensity, axis=0)
+    str_L0, str_Phi = numpy.asarray(L0).astype(str), numpy.asarray(Phi).astype(str)
+    names_array = numpy.asarray(light_names,dtype=str)[:,None]
     XL0 = numpy.concatenate([names_array,str_L0],axis=-1)
     XPhi = numpy.concatenate([names_array,str_Phi],axis=-1)
-    numpy.savetxt(os.path.join(out_path,'light','light_direction.lp'), XL0, fmt = '%s', header = str(len(ps_images_paths)), delimiter = ' ', comments='')
-    numpy.savetxt(os.path.join(out_path,'light','light_intensity.lp'), XPhi, fmt = '%s', header = str(len(ps_images_paths)), delimiter = ' ', comments='')
+    numpy.savetxt(os.path.join(path,'light_direction.lp'), XL0, fmt = '%s', header = str(len(light_names)), delimiter = ' ', comments='')
+    numpy.savetxt(os.path.join(path,'light_intensity.lp'), XPhi, fmt = '%s', header = str(len(light_names)), delimiter = ' ', comments='')
     try:
-        serialized = get_serialized_light_function(light, values)
-        with open(os.path.join(out_path,'light','light_function.jax'), "wb") as f:
+        serialized = light_serialization.serialize_light(light_dict['light'], light_dict['light_values'])
+        with open(os.path.join(path,'light_function.jax'), "wb") as f:
             f.write(serialized)
     except Exception as e :
         print(f"Serialization exception : {e}, skipping light serialization")
 
+def export_misc(path, light_dict, validity_mask, mask, images, light_names):
+    os.makedirs(path, exist_ok=True)
+    light_direction, light_intensity = light_dict['light'](**light_dict['light_values'])
+    rendered_images = models.get_grouped_renderer(light_dict['model']['renderers'])(light_direction, light_intensity, **light_dict['light_values'])
+    rendered_image = jax.tree_util.tree_reduce(lambda x, y : x + y, rendered_images)
+    delta = jax.numpy.abs(images-rendered_image)
+    iio.imwrite(os.path.join(path,'mask.png'), mask)
+    validitymap = vector_tools.build_masked(mask, jax.numpy.mean(validity_mask, axis=-1))
+    iio.imwrite(os.path.join(path, 'mean_validity.png'), numpy.uint8(numpy.clip(validitymap,0,1)*255.0))
+    scale = numpy.quantile(images, 0.98)
+    mean_delta_image = vector_tools.build_masked(mask, jax.numpy.mean(delta,axis=-1)/scale)
+    iio.imwrite(os.path.join(path, 'mean_delta.png'),numpy.uint8(255.0*numpy.clip(mean_delta_image,0,1)))
+    max_delta_image = vector_tools.build_masked(mask, jax.numpy.max(delta,axis=-1)/scale)
+    iio.imwrite(os.path.join(path, 'max_delta.png'),numpy.uint8(255.0*numpy.clip(max_delta_image,0,1)))
+    plot_function = plots.get_plot_light(light_dict['model']['light'])
+    if plot_function is not None:
+        light_plot = functions.filter_args(plot_function)(**light_dict['light_values'], mask=mask, names = light_names)
+        light_plot.write_html(os.path.join(path, 'light_plot.html'))
 
-def export_values(out_path, values, losses, mask):
-    losses_all = numpy.concatenate(losses)
-    numpy.savez(os.path.join(out_path, 'values.npz'), losses = losses_all, mask = mask, **values)
-
-def export_results(out_path, mask, parameters, data, losses, steps, images, ps_images_paths):
-    values = parameters | data
-    model = models.model_from_parameters(parameters, data)
-    light, renderer, _ = models.get_model(model)
-    light_direction, light_intensity = light(**values)
-    rendered_images = renderer(light_direction, light_intensity, **values)
-    export_lightmaps(out_path, light_direction, light_intensity, mask, ps_images_paths)
-    export_light(out_path, light, values, light_direction, light_intensity, ps_images_paths)
-    export_values(out_path, values, losses, mask)
-    export_misc(out_path, mask, values, losses, steps)
-    export_images(out_path, rendered_images, ps_images_paths, images, mask, values)
+def export_results(out_path, validity_mask,light_dict, mask, images, light_names):
+    export_images(os.path.join(out_path,'images'), light_dict, images, validity_mask, mask, light_names)
+    export_lightmaps(os.path.join(out_path,'lightmaps'), light_dict, mask, light_names)
+    export_values(os.path.join(out_path,'values'), light_dict, mask, validity_mask)
+    export_losses(os.path.join(out_path,'losses'), light_dict)
+    export_model(os.path.join(out_path), light_dict)
+    export_light(os.path.join(out_path,'light'), light_dict, light_names)
+    export_misc(os.path.join(out_path,'misc'), light_dict, validity_mask, mask, images, light_names)

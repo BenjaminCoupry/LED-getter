@@ -1,5 +1,30 @@
 import inspect
 import functools
+import networkx
+
+def force_positional(func):
+    sig = inspect.signature(func)
+    param_names = [
+        p.name for p in sig.parameters.values()
+        if p.kind in (p.POSITIONAL_ONLY, p.POSITIONAL_OR_KEYWORD)
+    ]
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        ordered_args = [kwargs[name] for name in param_names[len(args):]]
+        return func(*args, *ordered_args)
+    return wrapper
+
+
+def structured_return(keys):
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            results = func(*args, **kwargs)
+            anonymous = tuple(v for k, v in zip(keys, results) if k is None)
+            named = {k: v for k, v in zip(keys, results) if k is not None}
+            return anonymous, named
+        return wrapper
+    return decorator
 
 
 def filter_args(func):
@@ -46,3 +71,32 @@ def filter_output_args(factory_func):
         result_func = factory_func(*args, **kwargs)
         return filter_args(result_func)
     return wrapper
+
+def generator(inputs, outputs, registry):
+    def decorator(fn):
+        registry.update({output: {'inputs': set(inputs), 'fn': fn} for output in outputs})
+        return fn
+    return decorator
+
+def execute_generators(registry, required_outputs, initial_parameters, **kwargs):
+    graph = networkx.DiGraph()
+    def add_generating_fn(parameter):
+        if parameter not in initial_parameters:
+            if parameter in registry:
+                generating_fn = registry[parameter]['fn']
+            else:
+                raise ValueError(f"Cannot generate required parameter: {parameter}")
+            if generating_fn not in graph:
+                graph.add_node(generating_fn)
+                for input in registry[parameter]['inputs']:
+                    if input in registry and input not in initial_parameters:
+                        add_generating_fn(input)
+                        graph.add_edge(registry[input]['fn'], generating_fn)
+    for parameter in required_outputs:
+        add_generating_fn(parameter)
+    parameters = {**initial_parameters}
+    for fn in networkx.topological_sort(graph):
+        output = fn(**parameters, **kwargs)
+        parameters = output | parameters 
+    return parameters
+

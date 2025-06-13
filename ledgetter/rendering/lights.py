@@ -6,24 +6,24 @@ import ledgetter.space.coord_systems as coord_systems
 import ledgetter.space.spherical_harmonics as spherical_harmonics
 
 
-def get_directional_light(light_directions, light_power, points):
+def get_directional_light(light_directions, dir_light_power, points):
     """
     Generates directional light sources with given directions and power.
 
     Args:
         light_directions (Array l, 3): Directions of l light sources.
-        light_power (Array l): Power of l light sources.
+        dir_light_power (Array l): Power of l light sources.
         points (Array ..., 3): The points in space where the light is to be evaluated.
 
     Returns:
         Tuple[Array ..., l, 3], Array ..., l, c]: Light directions and corresponding intensities.
     """
-    nl, npix = light_power.shape[-1], points.shape[:-1]
-    light_local_intensity = jax.numpy.broadcast_to(jax.numpy.expand_dims(light_power, axis=-1), npix+(nl,1))
+    nl, npix = dir_light_power.shape[-1], points.shape[:-1]
+    light_local_intensity = jax.numpy.broadcast_to(jax.numpy.expand_dims(dir_light_power, axis=-1), npix+(nl,3))
     light_local_directions = jax.numpy.broadcast_to(light_directions, npix+(nl,3))
     return light_local_directions, light_local_intensity
 
-def get_rail_light(center, light_distance, light_directions, light_power, points):
+def get_rail_light(center, light_distance, light_directions, dir_light_power, points):
     """
     Computes the local direction and intensity of light sources along a rail, 
     based on their distance from a given center and their direction.
@@ -32,7 +32,7 @@ def get_rail_light(center, light_distance, light_directions, light_power, points
         center (Array ..., 3): The center position of the light source.
         light_distance (Array ..., l): The distance of light sources from the center.
         light_directions (Array ..., l, 3): The directions of l light sources.
-        light_power (Array ..., l): The power of l light sources.
+        dir_light_power (Array ..., l): The power of l light sources.
         points (Array ..., 3): The points in space where the light is to be evaluated.
 
     Returns:
@@ -40,7 +40,7 @@ def get_rail_light(center, light_distance, light_directions, light_power, points
     """
     light_locations = center + light_distance*light_directions
     light_local_distances, light_local_directions = vector_tools.norm_vector(light_locations - jax.numpy.expand_dims(points, axis=-2))
-    light_local_power = jax.numpy.expand_dims(light_power * jax.numpy.square(light_distance), axis=-2) / jax.numpy.square(light_local_distances)
+    light_local_power = jax.numpy.expand_dims(dir_light_power * jax.numpy.square(light_distance), axis=-2) / jax.numpy.square(light_local_distances)
     light_local_intensity =  jax.numpy.expand_dims(light_local_power, axis=-1)
     return light_local_directions, light_local_intensity
 
@@ -137,10 +137,9 @@ def get_harmonic_light(light_locations, light_power, light_principal_direction, 
     """
 
     light_local_distances, light_local_directions = vector_tools.norm_vector(light_locations - jax.numpy.expand_dims(points, axis=-2))
-    Ri = rotations.rotation_between_vectors(light_principal_direction, jax.numpy.asarray([0,0,1]), free_rotation)
-    light_local_directions_led_referential = jax.numpy.einsum('lui, ...li -> ...lu', Ri, -light_local_directions)
-    g_coefficients = vector_tools.partial_stop_gradients(coefficients, 0)
-    anisotropy = jax.nn.relu(jax.numpy.moveaxis(spherical_harmonics.sh_function(light_local_directions_led_referential, g_coefficients.T[:,None,None,:], int(l_max)), 0, -1))
+    g_coefficients = vector_tools.partial_stop_gradients(coefficients, 0).T[:,None,None,:]
+    swaped_anisotropy = spherical_harmonics.oriented_sh_function(-light_local_directions, light_principal_direction, free_rotation, g_coefficients, int(l_max))
+    anisotropy = jax.nn.relu(jax.numpy.moveaxis(swaped_anisotropy, 0, -1))
     light_local_power = jax.numpy.expand_dims(light_power, axis=-2) / jax.numpy.square(light_local_distances)
     light_local_intensity = jax.numpy.einsum('...l, ...lc ->...lc', light_local_power, anisotropy)
     return light_local_directions, light_local_intensity

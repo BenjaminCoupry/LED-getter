@@ -1,11 +1,13 @@
 
 import numpy as np
 import ledgetter.utils.vector_tools as vector_tools
+import ledgetter.space.spherical_harmonics as spherical_harmonics
+import ledgetter.utils.functions as functions
 import plotly.graph_objects as go
 import plotly.express as px
 import jax
 
-def get_losses_plot(losses, steps):
+def plot_losses(losses, steps):
     iterations = list(map(len, losses))
     boundaries = np.cumsum([0] + iterations)
     x_vals = np.arange(sum(iterations))
@@ -78,125 +80,44 @@ def get_losses_plot(losses, steps):
     return fig
 
 
-def plot_directional(light_power, light_directions, mask, albedo, names=None):
-    rel_power = light_power / jax.numpy.max(light_power)
-    albedomap = vector_tools.build_masked(mask, jax.numpy.uint8(255*jax.numpy.clip(albedo/jax.numpy.quantile(albedo,0.95), 0, 1)), fill_value=jax.numpy.nan)
-    H, W = mask.shape[:2]
-    image = go.Heatmap(
-        z=jax.numpy.mean(albedomap, axis=-1),
-        colorscale='gray',
-        zmin=0,
-        zmax=255,
-        showscale=False,
-        xaxis='x',
-        yaxis='y', name = 'Albedo Map'
-    )
-    lights = go.Scatter(
-        x= light_directions[:,0],
-        y= light_directions[:,1],
+def get_directional_lights(dir_light_power, light_directions, names=None):
+    rel_power = dir_light_power / np.max(dir_light_power)
+    x = light_directions[:, 0]
+    y = light_directions[:, 1]
+    r = np.sqrt(x**2 + y**2)
+    theta = np.degrees(np.arctan2(y, x))
+    lights = go.Scatterpolar(
+        r=r,
+        theta=theta,
         mode='markers+text' if names is not None else 'markers',
         marker=dict(
             size=10,
             color=rel_power,
             colorscale='solar',
-            colorbar=dict(title='Relative Power'),
+            colorbar=dict(
+                title='Relative Power'),
             cmin=0,
             cmax=1,
             symbol='star',
             line=dict(width=1.5, color='black')
         ),
+        textfont=dict(size=14),
         name='Lights',
         text=names,
-        xaxis='x2',
-        yaxis='y2',
         showlegend=True
     )
+    objects = [lights]
+    return objects
 
-    image_legend = go.Scatter(
-        x=[None], y=[None],  # point invisible
-        mode='markers',
-        marker=dict(
-            size=10,
-            color='gray',
-            symbol='square'
-        ),
-        xaxis='x',
-        yaxis='y',
-        name='Albedo Map',
-        showlegend=True
-    )
-
-    origin_marker = go.Scatter(
-        x=[0],
-        y=[0],
-        mode='markers',
-        marker=dict(
-            symbol='cross',
-            size= 10,
-            color='black',
-            line=dict(width=1.5)
-        ),
-        name='Origin',
-        xaxis='x2',
-        yaxis='y2',
-        showlegend=True
-    )
-
-    theta = jax.numpy.linspace(0, 2 * jax.numpy.pi, 200)
-    unit_circle = go.Scatter(
-        x=jax.numpy.cos(theta),
-        y=jax.numpy.sin(theta),
-        mode='lines',
-        xaxis='x2',
-        yaxis='y2',
-        line=dict(color='blue', dash='dot'),
-        name='Unit Circle',
-        showlegend=True
-    )
-
-
-
-    layout = go.Layout(
-        title='Directional Light',
-        xaxis=dict(title='X (image)', range=[0, W], showgrid=False, domain=[0, 1],),
-        yaxis=dict(title='Y (image)', range=[H, 0], scaleanchor='x', showgrid=False, domain=[0, 1],),
-
-        # Axes pour directions
-        xaxis2=dict(
-            title='X (direction)',
-            range=[-1, 1],
-            overlaying='x',
-            scaleanchor='y2',
-            side='top',
-            tickmode='array',
-            tickvals=[-1, -0.5, 0, 0.5, 1],
-            ticktext=['-1', '-0.5', '0', '0.5', '1'],
-            showgrid=False
-        ),
-        yaxis2=dict(
-            title=None,
-            range=[1, -1],
-            overlaying='y',
-            visible = False,
-            showgrid=False
-        ),
-        legend=dict(x=0, y=1)
-    )
-
-    fig = go.Figure(data=[image, image_legend, origin_marker, lights, unit_circle], layout=layout)
-    
-    return fig
-
-
-def plot_punctual(light_power, light_locations, mask, points, albedo, names=None):
-    rel_power = light_power / np.max(light_power)
-    pointmap, albedomap = vector_tools.build_masked(mask, points, fill_value=np.nan), vector_tools.build_masked(mask, jax.numpy.clip(albedo/jax.numpy.quantile(albedo,0.95), 0, 1), fill_value=np.nan)
-
+def get_surface(mask, points, rho):
+    step_u, step_v = max(1,int(mask.shape[0]/100)), max(1,int(mask.shape[1]/100))
+    pointmap = vector_tools.build_masked(mask, points, fill_value=np.nan)[::step_u, ::step_v]
+    rhomap = vector_tools.build_masked(mask, jax.numpy.clip(rho/jax.numpy.quantile(rho,0.95), 0, 1), fill_value=np.nan)[::step_u, ::step_v]
     surface = go.Surface(
         x=pointmap[:, :, 0],
         y=pointmap[:, :, 1],
         z=pointmap[:, :, 2],
-        surfacecolor=np.mean(albedomap, axis=2),
+        surfacecolor=np.mean(rhomap, axis=2),
         colorscale='gray',
         showscale=False,
         opacity=0.8,
@@ -204,6 +125,25 @@ def plot_punctual(light_power, light_locations, mask, points, albedo, names=None
         showlegend=True
     )
 
+    origin_marker = go.Scatter3d(
+        x=[0],
+        y=[0],
+        z=[0],
+        mode='markers',
+        marker=dict(
+            symbol='cross',
+            size= 6,
+            color='black',
+            line=dict(width=1.5)
+        ),
+        name='Camera',
+        showlegend=True
+    )
+    objects = [surface, origin_marker]
+    return objects
+
+def get_punctual_lights(light_power, light_locations, names=None):
+    rel_power = light_power / np.max(light_power)
     scatter = go.Scatter3d(
         x=light_locations[:, 0],
         y=light_locations[:, 1],
@@ -222,95 +162,23 @@ def plot_punctual(light_power, light_locations, mask, points, albedo, names=None
         name="Light",
         showlegend=True
     )
+    objects = [scatter]
+    return objects
 
-    origin_marker = go.Scatter3d(
-        x=[0],
-        y=[0],
-        z=[0],
-        mode='markers',
-        marker=dict(
-            symbol='cross',
-            size= 6,
-            color='black',
-            line=dict(width=1.5)
-        ),
-        name='Camera',
-        showlegend=True
-    )
-
-    layout = go.Layout(
-        scene=dict(
-            xaxis=dict(title='X'),
-            yaxis=dict(title='Y'),
-            zaxis=dict(title='Z'),
-            aspectmode='data'
-        ),
-        title='Directional Light',
-        legend=dict(x=0, y=1),
-    )
-
-    fig = go.Figure(data= [scatter, origin_marker, surface], layout=layout)
-    return fig
-
-def plot_LED(light_power, light_locations, light_principal_direction, mu, mask, points, albedo, names=None):
+def get_anisotropies(light_power, light_locations, radius, anisotropy_func):
     rel_power = light_power / np.max(light_power)
-    radius = jax.numpy.mean(jax.numpy.linalg.norm(light_locations-jax.numpy.mean(points,axis=0), axis=-1))
-    pointmap, albedomap = vector_tools.build_masked(mask, points, fill_value=np.nan), vector_tools.build_masked(mask, jax.numpy.clip(albedo/jax.numpy.quantile(albedo,0.95), 0, 1), fill_value=np.nan)
-
-    surface = go.Surface(
-        x=pointmap[:, :, 0],
-        y=pointmap[:, :, 1],
-        z=pointmap[:, :, 2],
-        surfacecolor=np.mean(albedomap, axis=2),
-        colorscale='gray',
-        showscale=False,
-        opacity=0.8,
-        name='Surface',
-        showlegend=True
-    )
-
-    scatter = go.Scatter3d(
-        x=light_locations[:, 0],
-        y=light_locations[:, 1],
-        z=light_locations[:, 2],
-        mode='markers+text' if names is not None else 'markers',
-        marker=dict(
-            size=3,
-            color='black',
-        ),
-        text=names if names is not None else None,
-        textposition="top center",
-        name="Light",
-        showlegend=True
-    )
-
-    origin_marker = go.Scatter3d(
-        x=[0],
-        y=[0],
-        z=[0],
-        mode='markers',
-        marker=dict(
-            symbol='cross',
-            size= 6,
-            color='black',
-            line=dict(width=1.5)
-        ),
-        name='Camera',
-        showlegend=True
-    )
-
-    surfaces = []
+    objects = []
     colors = ['Reds', 'Greens', 'Blues']
-    theta = np.linspace(0, 2 * np.pi, 100)
-    phi = np.linspace(0, np.pi, 100)
+    theta = np.linspace(0, 2 * np.pi, 50)
+    phi = np.linspace(0, np.pi, 50)
     theta, phi = np.meshgrid(theta, phi)
     x = np.sin(phi) * np.cos(theta)
     y = np.sin(phi) * np.sin(theta)
     z = np.cos(phi)
-    for l in range(light_principal_direction.shape[0]):
+    cartesian = np.stack([x,y,z], axis=-1)
+    for l in range(light_locations.shape[0]):
         for c in range(3):
-            show_colorbar = l==0
-            flux = jax.numpy.power(jax.numpy.maximum(0,light_principal_direction[l,0]*x+light_principal_direction[l,1]*y+light_principal_direction[l,2]*z), mu[c])
+            flux = anisotropy_func(cartesian, l, c)
             scale = flux * radius*0.1 * rel_power[l]
             surface_led = go.Surface(
                 x=light_locations[l, 0]+x*scale, y=light_locations[l, 1]+y*scale, z=light_locations[l, 2]+z*scale,
@@ -318,17 +186,41 @@ def plot_LED(light_power, light_locations, light_principal_direction, mu, mask, 
                 colorscale=colors[c],
                 opacity = 0.2,
                 name='Emission profile' if (l==0 and c==0) else None,
-                showlegend= (l==0 and c==0),
-                showscale = show_colorbar,
-                colorbar=dict(
-                    title=['Red', 'Green', 'Blue'][c],
-                    x=1.0 + 0.05 * c,  # adjust spacing
-                    len=0.5
-                ) if show_colorbar else None
+                showlegend = (l==0 and c==0),
+                showscale=False
             )
-            surfaces.append(surface_led)
-    
+            objects.append(surface_led)
+    return objects
 
+def get_LED_anisotropies(light_power, light_locations, radius, light_principal_direction, mu):
+    anisotropy_func = lambda cartesian, l, c : np.power(np.maximum(0,np.sum(light_principal_direction[l]*cartesian, axis=-1)), mu[c])
+    objects = get_anisotropies(light_power, light_locations, radius, anisotropy_func)
+    return objects
+
+def get_harmonic_anisotropies(light_power, light_locations, radius, light_principal_direction, free_rotation, coefficients, l_max):
+    anisotropy_func = lambda cartesian, l, c : jax.nn.relu(spherical_harmonics.oriented_sh_function(cartesian, light_principal_direction[l], free_rotation[l], coefficients[:,c], l_max))
+    objects = get_anisotropies(light_power, light_locations, radius, anisotropy_func)
+    return objects
+
+
+def plot_directional_light(dir_light_power, light_directions, names=None):
+    lights = get_directional_lights(dir_light_power, light_directions, names=names)
+
+    layout = go.Layout(
+        polar=dict(
+                radialaxis=dict(showgrid=True, showline=False),
+                angularaxis=dict(showgrid=True, direction='counterclockwise'),
+            ),
+        title='Directional Light',
+        legend=dict(x=0, y=1),
+    )
+
+    fig = go.Figure(data= lights, layout=layout)
+    return fig
+
+def plot_punctual_light(light_power, light_locations, mask, points, rho, names=None):
+    surface = get_surface(mask, points, rho)
+    lights = get_punctual_lights(light_power, light_locations, names=names)
 
     layout = go.Layout(
         scene=dict(
@@ -341,8 +233,59 @@ def plot_LED(light_power, light_locations, light_principal_direction, mu, mask, 
         legend=dict(x=0, y=1),
     )
 
-    fig = go.Figure(data= [scatter, origin_marker, surface]+surfaces, layout=layout)
+    fig = go.Figure(data= surface + lights, layout=layout)
+    return fig
 
+def plot_LED_light(light_power, light_locations, light_principal_direction, mu, mask, points, rho, names=None):
+    radius = jax.numpy.mean(jax.numpy.linalg.norm(light_locations-jax.numpy.mean(points,axis=0), axis=-1))
+    surface = get_surface(mask, points, rho)
+    lights = get_punctual_lights(light_power, light_locations, names=names)
+    anisotropies = get_LED_anisotropies(light_power, light_locations, radius, light_principal_direction, mu)
+
+    layout = go.Layout(
+        scene=dict(
+            xaxis=dict(title='X'),
+            yaxis=dict(title='Y'),
+            zaxis=dict(title='Z'),
+            aspectmode='data'
+        ),
+        title='Directional Light',
+        legend=dict(x=0, y=1),
+    )
+
+    fig = go.Figure(data= surface + lights + anisotropies, layout=layout)
+    return fig
+
+def plot_harmonic_light(light_power, light_locations, light_principal_direction, free_rotation, coefficients, l_max, mask, points, rho, names=None):
+    radius = jax.numpy.mean(jax.numpy.linalg.norm(light_locations-jax.numpy.mean(points,axis=0), axis=-1))
+    surface = get_surface(mask, points, rho)
+    lights = get_punctual_lights(light_power, light_locations, names=names)
+    anisotropies = get_harmonic_anisotropies(light_power, light_locations, radius, light_principal_direction, free_rotation, coefficients, l_max)
+
+    layout = go.Layout(
+        scene=dict(
+            xaxis=dict(title='X'),
+            yaxis=dict(title='Y'),
+            zaxis=dict(title='Z'),
+            aspectmode='data'
+        ),
+        title='Directional Light',
+        legend=dict(x=0, y=1),
+    )
+
+    fig = go.Figure(data= surface + lights + anisotropies, layout=layout)
     return fig
 
 
+def get_plot_light(light):
+    match light:
+        case 'directional':
+            return plot_directional_light
+        case 'punctual':
+            return plot_punctual_light
+        case 'LED':
+            return plot_LED_light
+        case 'harmonic':
+            return plot_harmonic_light
+        case _:
+            return None

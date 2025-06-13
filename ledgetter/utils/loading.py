@@ -12,30 +12,12 @@ import ledgetter.image.camera as camera
 import ledgetter.utils.meshroom as meshroom
 import ledgetter.space.raycasting as raycasting
 import imageio.v3 as iio
-import jax.export
+import ledgetter.utils.files as files
+import ledgetter.utils.light_serialization as light_serialization
 import ledgetter.utils.functions as functions
-import ledgetter.rendering.models as models
+import ledgetter.models.models as models
+import ledgetter.utils.vector_tools as vector_tools
 
-
-def chunck_index(chunck, length):
-    """
-    Computes the slice corresponding to a given chunk index in a partitioned sequence.
-
-    Parameters:
-    chunck (tuple): A tuple containing the section index and the total number of sections.
-    length (int): The total length of the sequence.
-
-    Returns:
-    slice: A slice object representing the range of indices for the given chunk.
-    """
-    section, n_sections = chunck
-    n_each_section, extras = divmod(length, n_sections)
-    section_sizes = ([0] +
-                        extras * [n_each_section+1] +
-                        (n_sections-extras) * [n_each_section])
-    div_points = numpy.cumsum(section_sizes)
-    chunck_slice =  slice(div_points[section], div_points[section+1])
-    return chunck_slice, numpy.empty(length)[chunck_slice].shape[0]
 
 def get_pixelmap(size):
     """
@@ -49,9 +31,15 @@ def get_pixelmap(size):
     """
     if type(size) is dict :
         width, height = int(size['width']), int(size['height'])
+    elif type(size) is str :
+        format = pathlib.Path(size).suffix.lower()
+        if format in {'.jpg', '.jpeg', '.png', '.nef'}:
+            props = iio.improps(size)
+            width, height = props.shape[1], props.shape[0]
+        else:
+            raise ValueError(f"Unknown size format: {format}")
     else:
-        props = iio.improps(size)
-        width, height = props.shape[1], props.shape[0]
+        raise ValueError(f"Unknown size type: {type(size)}")
     width_range, height_range = jax.numpy.arange(0,width),jax.numpy.arange(0,height)
     coordinates = jax.numpy.stack(jax.numpy.meshgrid(width_range,height_range),axis=-1)
     return coordinates
@@ -66,11 +54,14 @@ def load_image(path):
     Returns:
     numpy.ndarray: A floating-point image array normalized to [0,1].
     """
-    if pathlib.Path(path).suffix.lower() in {'.jpg', '.jpeg', '.png'}: #given a developed image
+    format = pathlib.Path(path).suffix.lower()
+    if format in {'.jpg', '.jpeg', '.png'}: #given a developed image
         image = jax.numpy.asarray(iio.imread(path)/255.0)
-    else : #given a raw image
+    elif format in {'.nef'}: #given a raw image
         with rawpy.imread(path) as raw:
             image = jax.numpy.asarray(raw.postprocess(use_camera_wb=True, output_bps=16, no_auto_bright=True, gamma=(1,1), half_size=False, user_flip = 0)/(2**16-1))
+    else:
+        raise ValueError(f"Unknown image format: {format}")
     return image
 
 def extract_pixels(image, pixels, pose=None, kernel_span=5, batch_size=100):
@@ -144,21 +135,24 @@ def load_geometry(path, pixels, pose=None):
     Returns:
     tuple: A tuple containing a mask, normal vectors, and 3D points.
     """
-    if pathlib.Path(path).suffix.lower() in {'.npz'}: #given .npz geometry
+    format = pathlib.Path(path).suffix.lower()
+    if format in {'.npz'}: #given .npz geometry
         with numpy.load(path) as loaded:
             normalmap_loaded, mask_loaded, points_loaded = loaded['normalmap'].astype(numpy.float32), loaded['mask'], loaded['points'].astype(numpy.float32)
         normalmap_grid, mask_grid, points_grid = lanczos.grid_from_array(jax.numpy.swapaxes(normalmap_loaded, 0, 1)), lanczos.grid_from_array(jax.numpy.swapaxes(mask_loaded, 0, 1)), lanczos.grid_from_array(jax.numpy.swapaxes(points_loaded, 0, 1))
         geometry = lambda pixels : ((lambda mask, normalmap, points : (jax.numpy.logical_and(mask[0], mask[1]), normalmap[0], points[0]))(mask_grid(pixels), normalmap_grid(pixels), points_grid(pixels)))
         raycaster = None #TODO : raycaster from depthmap
         backend = 'cpu'
-    else : #extracting geometry from a mesh
+    elif format in {'.obj', '.ply'} or os.path.isdir(path):  #extracting geometry from a mesh
+        mesh_path = meshroom.get_mesh_path(path) if os.path.isdir(path) else path #direct path or path to a meshroom project
         K, R, t = jax.numpy.asarray(pose['K']), jax.numpy.asarray(pose['R']), jax.numpy.asarray(pose['t'])
         transform = camera.get_rototranslation_matrix(R, t, to_camera=True)
-        mesh_path = meshroom.get_mesh_path(path) if os.path.isdir(path) else path #direct path or path to a meshroom project
         mesh = load_mesh(mesh_path, transform)
         raycaster = raycasting.get_mesh_raycaster(mesh)
         geometry = camera.get_geometry(raycaster, K)
         backend = jax.default_backend()
+    else:
+        raise ValueError(f"Unknown geometry format: {format}")
     mask, normals, points = jax.jit(geometry, backend = backend)(pixels)
     return mask, normals, points, raycaster
 
@@ -181,20 +175,94 @@ def load_pose(path, aligned_image_path=None):
         sfm_path = meshroom.get_sfm_path(path)
         with open(sfm_path, 'r') as f:
             sfm = json.load(f)
-        view_id = meshroom.get_view_id(sfm, aligned_image_path) #
+        view_id = meshroom.get_view_id(sfm, aligned_image_path)
         pose = meshroom.get_pose(sfm, view_id)
+    else:
+        raise ValueError(f"Unknown pose format: {path}")
     return pose
 
 
-def load_light(path):
-    if pathlib.Path(path).suffix.lower() in {'.jax'}:
+            
+def load_light(path, model=None, light_names=None):
+    format = pathlib.Path(path).suffix.lower()
+    if format in {'.jax'}:
         with open(path, "rb") as f:
             serialized = f.read()
-        light = functions.filter_args(lambda points, pixels : jax.export.deserialize(serialized).call(points, pixels))
-    elif pathlib.Path(path).suffix.lower() in {'.npz'}:
-        with numpy.load(path) as light_archive:
-            light_values = dict(light_archive)
-        light_model = models.model_from_parameters(light_values, {})
-        light_raw = models.get_light(light_model['light'])
+        light = light_serialization.deserialize_light(serialized)
+    elif format in {'.npz', '.lp'} and model is not None:
+        light_values = load_light_values(path, light_names=light_names)
+        light_raw = models.get_light(model['light'])
         light = functions.filter_args(jax.jit(lambda points, pixels : light_raw(**(light_values | {'points':points, 'pixels':pixels}))))
+    else:
+        raise ValueError(f"Unknown light format: {format}, with {'known' if model is not None else 'unknown'} model and {'known' if light_names is not None else 'unknown'} light names")
     return light
+
+
+def load_losses(path):
+    format = pathlib.Path(path).suffix.lower()
+    if format in {'.npz'}:
+        with numpy.load(path, allow_pickle=True) as losses_archive:
+            losses_values = dict(losses_archive)
+            losses = [(name, losses_values[name]) for name in losses_values['steps_order']]
+    else:
+        raise ValueError(f"Unknown losses format: {format}")
+    return losses
+
+def load_model(path):
+    format = pathlib.Path(path).suffix.lower()
+    if format in {'.json'}:
+        with open(path, 'r') as f:
+            model_dict = json.load(f)
+        model = {'light': model_dict['light'], 'renderers': model_dict['renderers'], 'parameters': set(model_dict['parameters']), 'data':   set(model_dict['data'])}
+    elif format in {'.npz'}:
+        with numpy.load(path) as light_archive:
+            light_values_keys = set(light_archive.keys())
+        model = models.model_from_parameters(set(), light_values_keys)
+    elif format in {'.lp'}:
+        model = {'light': 'directional', 'renderers': [], 'parameters': {'light_directions', 'dir_light_power'}, 'data':  set()}
+    else:
+        raise ValueError(f"Unknown model format: {format}")
+    return model
+
+def load_light_values(path, light_names=None):
+    format = pathlib.Path(path).suffix.lower()
+    if format in {'.npz'}:
+        with numpy.load(path) as light_archive:
+            light_values = {k:v for k, v in light_archive.items() if k not in {'mask', 'validity_mask'}}
+    elif format in {'.lp'} and light_names is not None:
+        names_dir = numpy.loadtxt(path,skiprows=1,dtype=str,usecols=0)
+        unsorted_dir = numpy.loadtxt(path,skiprows=1,dtype=float,usecols=(1,2,3))
+        order_dir = numpy.asarray([numpy.argwhere(names_dir==n)[0,0] for n in light_names])
+        light_directions_raw = unsorted_dir[order_dir,:]
+        light_intensity_path = pathlib.Path(path).with_name("light_intensity.lp")
+        if os.path.isfile(light_intensity_path):
+            names_int = numpy.loadtxt(light_intensity_path,skiprows=1,dtype=str,usecols=0)
+            unsorted_int = numpy.loadtxt(light_intensity_path,skiprows=1,dtype=float,usecols=1)
+            order_int = numpy.asarray([numpy.argwhere(names_int==n)[0,0] for n in light_names])
+            dir_light_power = unsorted_int[order_int]
+        else:
+            dir_light_power = None
+        light_directions_norm, light_directions = vector_tools.norm_vector(light_directions_raw)
+        dir_light_power = dir_light_power if dir_light_power is not None else light_directions_norm
+        light_values = {'light_directions': light_directions, 'dir_light_power': dir_light_power}
+    else:
+        raise ValueError(f"Unknown light values format: {format} with {'known' if light_names is not None else 'unknown'} light names")
+    return light_values
+
+
+def load_light_dict(path, do_load_light_values = True, do_load_light=None, do_load_model=True, do_load_losses=True, light_names = None):
+    if os.path.isdir(path):
+        model_path, light_values_path, losses_path, light_path, lp_path =\
+            os.path.join(path or '', 'model.json'), os.path.join(path or '', 'values', 'values.npz'),\
+            os.path.join(path or '', 'losses','losses.npz'), os.path.join(path or '', 'light','light_function.jax'), os.path.join(path or '', 'light','light_direction.lp')
+    elif pathlib.Path(path).suffix.lower() in {'.lp'} and light_names is not None:
+        model_path, light_values_path, losses_path, light_path, lp_path = path, path, path, path, path
+    else:
+        raise ValueError(f"Unknown light format: {path} with {'known' if light_names is not None else 'unknown'} light names")
+    light_values = load_light_values(files.first_existing_file([light_values_path, lp_path]), light_names=light_names) if path and do_load_light_values and (os.path.isfile(light_values_path) or os.path.isfile(lp_path)) else {}
+    model = load_model(files.first_existing_file([model_path, light_values_path, lp_path])) if path and do_load_model and (os.path.isfile(model_path) or os.path.isfile(light_values_path) or os.path.isfile(lp_path)) else None
+    light = load_light(files.first_existing_file([light_path, light_values_path, lp_path]), model=model, light_names=light_names) if path and do_load_light and (os.path.isfile(light_path) or os.path.isfile(light_values_path)or os.path.isfile(lp_path)) else None
+    losses = load_losses(losses_path) if path and do_load_losses and losses_path is not None and os.path.isfile(losses_path) else []
+    light_dict = {'model': model, 'light_values': light_values, 'light': light, 'losses': losses}
+    return light_dict
+

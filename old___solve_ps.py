@@ -6,7 +6,7 @@ os.environ["XLA_PYTHON_CLIENT_PREALLOCATE"] = "true"
 import glob
 import pipeline.preprocessing as preprocessing
 import pipeline.ps_pipeline as ps_pipeline
-import pipeline.outputs as outputs
+import pipeline._outputs_old as _outputs_old
 
 import numpy
 import jax

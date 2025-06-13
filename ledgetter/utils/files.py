@@ -42,3 +42,42 @@ def find_similar_path(source, options):
     similarity, pairs_it = next(itertools.groupby(sorted_pairs, key = key), (0, None))
     elements = None if (pairs_it is None or similarity == 0) else list(pairs_it)
     return elements, similarity
+
+def first_existing_file(paths):
+    if any(map(os.path.isfile, paths)):
+        path = next(filter(lambda p : os.path.isfile(p), paths))
+    else:
+        path = None
+    return path
+
+def int_to_roman(n):
+    if not (0 < n < 4000):
+        raise ValueError("Le nombre doit être entre 1 et 3999")
+    val = [
+        1000, 900, 500, 400,
+        100, 90,  50, 40,
+        10,  9,   5,  4, 1
+    ]
+    syms = [
+        "M", "CM", "D", "CD",
+        "C", "XC", "L", "XL",
+        "X", "IX", "V", "IV", "I"
+    ]
+    roman = ""
+    for i in range(len(val)):
+        count = n // val[i]
+        roman += syms[i] * count
+        n -= val[i] * count
+    return roman
+
+def get_new_unique_name(names, name_to_add, roman=True):
+    if name_to_add not in names:
+        new_name = name_to_add
+    else:
+        name, ext = os.path.splitext(name_to_add)
+        counter = 1
+        counting = lambda i : int_to_roman(i) if roman else str(i)
+        while f"{name}_{counting(counter)}{ext}" in names:
+            counter +=1
+        new_name = f"{name}_{counting(counter)}{ext}"
+    return new_name
