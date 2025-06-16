@@ -251,7 +251,9 @@ def load_light_values(path, light_names=None):
 
 
 def load_light_dict(path, do_load_light_values = True, do_load_light=None, do_load_model=True, do_load_losses=True, light_names = None):
-    if os.path.isdir(path):
+    if path is None:
+        model_path, light_values_path, losses_path, light_path, lp_path = None, None, None, None, None
+    elif os.path.isdir(path):
         model_path, light_values_path, losses_path, light_path, lp_path =\
             os.path.join(path or '', 'model.json'), os.path.join(path or '', 'values', 'values.npz'),\
             os.path.join(path or '', 'losses','losses.npz'), os.path.join(path or '', 'light','light_function.jax'), os.path.join(path or '', 'light','light_direction.lp')
