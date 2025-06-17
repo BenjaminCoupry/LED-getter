@@ -58,6 +58,7 @@ for PATTERN in "${PATTERN_LIST[@]}"; do
     CMD_ESTIM+=" --pattern $PATTERN"
     CMD_ESTIM+=" --out_path \"$OUT_PATH\""
     CMD_ESTIM+=" --backend gpu"
+    CMD_ESTIM+=" --slice_i 0"
     [ -n "$ESTIM_STEP" ] && CMD_ESTIM+=" --step $ESTIM_STEP"
     if [[ ! " ${SKIP_LIGHT_LOAD[@]} " =~ " ${PATTERN} " ]] && [ -n "$PREV_OUT_PATH" ]; then
         CMD_ESTIM+=" --loaded_light_folder \"$PREV_OUT_PATH\""
@@ -68,18 +69,22 @@ for PATTERN in "${PATTERN_LIST[@]}"; do
 
     PREV_OUT_PATH="$OUT_PATH"
 
-    if [[ " ${SOLVE_PS[@]} " =~ " ${PATTERN} " ]]; then
+if [[ " ${SOLVE_PS[@]} " =~ " ${PATTERN} " ]]; then
+    for (( SLICE_I=0; SLICE_I<PS_STEP*PS_STEP; SLICE_I++ )); do
         CMD_PS="$CMD"
-        OUT_PATH="$BASE_OUT_PATH/ps/${PATTERN}"
+        SLICE_DIR=$(printf "slice_%05d" "$SLICE_I")
+        OUT_PATH="$BASE_OUT_PATH/ps/${PATTERN}/${SLICE_DIR}"
         CMD_PS+=" --pattern PS"
         CMD_PS+=" --out_path \"$OUT_PATH\""
         CMD_PS+=" --loaded_light_folder \"$PREV_OUT_PATH\""
         [ -n "$PS_STEP" ] && CMD_PS+=" --step $PS_STEP"
+        CMD_PS+=" --slice_i $SLICE_I"
         CMD_PS+=" --backend cpu"
 
-        echo "Running PS: $CMD_PS"
+        echo "Running PS (slice $SLICE_I): $CMD_PS"
         eval $CMD_PS
-    fi
+    done
+fi
 
 
 
