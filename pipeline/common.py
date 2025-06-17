@@ -30,10 +30,6 @@ def parse_args():
         help="Decimation of input dimension"
     )
     parser.add_argument(
-        '--slice_i', type=int, default=0,
-        help="Decimation shift"
-    )
-    parser.add_argument(
         '--meshroom_project', type=str, default=None,
         help="Path to the Meshroom project (optional)."
     )
