@@ -11,8 +11,8 @@ import itertools
 def main():
     args = common.parse_args()
     is_ps = args.pattern == 'PS'
-    chuncker, _ = chuncks.get_chuncker((args.step, args.step))
-    slicer = chuncker if is_ps else itertools.islice(chuncker, -1, None, None)
+    chuncker, n_chuncks = chuncks.get_chuncker((args.step, args.step))
+    slicer = chuncker if is_ps else itertools.islice(chuncker, n_chuncks-1, None, None)
     for i, sliced in enumerate(slicer):
         print(f"SLICE {i:05d}")
         with jax.default_device(jax.devices(args.backend)[0]):
@@ -26,7 +26,7 @@ def main():
                     pose_path=args.pose_path,
                     black_image_path=args.black_image_path,
                     loaded_light_folder=args.loaded_light_folder,
-                    load_light_function=False,
+                    load_light_function=is_ps,
                     learning_rate=args.learning_rate,
                     tqdm_refresh=args.tqdm_refresh,
                     added_values={}

@@ -3,6 +3,7 @@
 ### === CONFIGURATION ===
 
 PATTERN_LIST=("directional" "rail" "punctual" "LED" "specular" "harmonic" "grid")
+SOLVE_PS=("directional" "rail" "punctual" "LED" "specular" "harmonic" "grid")
 SKIP_LIGHT_LOAD=("grid" "directional")
 
 # Required
@@ -19,16 +20,13 @@ BLACK_IMAGE_PATH=""
 # Optimization and control (set to empty string "" to omit them)
 DELTA=0.01
 LEARNING_RATE=0.001
-ITERATIONS=1000
+ITERATIONS=10000
 TQDM_REFRESH=1
 
 # Photometric stereo (set to empty string "" to omit them)
-STEP=21
-SLICE_I=0
+ESTIM_STEP=10
+PS_STEP=4
 PS_CHUNCK_NUMBER=100
-
-# Backend (set to empty string "" to omit them)
-BACKEND="gpu" 
 
 ### === EXECUTION ===
 
@@ -37,16 +35,11 @@ PREV_OUT_PATH=""
 for PATTERN in "${PATTERN_LIST[@]}"; do
     echo "=== Processing pattern: $PATTERN ==="
 
-    OUT_PATH="$BASE_OUT_PATH/${PATTERN}_1"
-
     CMD="python main.py"
 
     # Required
-    CMD+=" --pattern $PATTERN"
     CMD+=" --ps_images_paths $PS_IMAGES_PATHS"
-    CMD+=" --out_path \"$OUT_PATH\""
-
-
+    
     # Optional paths
     [ -n "$MESHROOM_PROJECT" ] && CMD+=" --meshroom_project \"$MESHROOM_PROJECT\""
     [ -n "$ALIGNED_IMAGE_PATH" ] && CMD+=" --aligned_image_path \"$ALIGNED_IMAGE_PATH\""
@@ -57,21 +50,37 @@ for PATTERN in "${PATTERN_LIST[@]}"; do
     [ -n "$LEARNING_RATE" ] && CMD+=" --learning_rate $LEARNING_RATE"
     [ -n "$ITERATIONS" ] && CMD+=" --iterations $ITERATIONS"
     [ -n "$TQDM_REFRESH" ] && CMD+=" --tqdm_refresh $TQDM_REFRESH"
-    [ -n "$STEP" ] && CMD+=" --step $STEP"
-    [ -n "$SLICE_I" ] && CMD+=" --slice_i $SLICE_I"
     [ -n "$PS_CHUNCK_NUMBER" ] && CMD+=" --ps_chunck_number $PS_CHUNCK_NUMBER"
-    [ -n "$BACKEND" ] && CMD+=" --backend $BACKEND"
+    
 
-    # Load previous light unless it's directional or grid
+    CMD_ESTIM="$CMD"
+    OUT_PATH="$BASE_OUT_PATH/light/${PATTERN}"
+    CMD_ESTIM+=" --pattern $PATTERN"
+    CMD_ESTIM+=" --out_path \"$OUT_PATH\""
+    CMD_ESTIM+=" --backend gpu"
+    [ -n "$ESTIM_STEP" ] && CMD_ESTIM+=" --step $ESTIM_STEP"
     if [[ ! " ${SKIP_LIGHT_LOAD[@]} " =~ " ${PATTERN} " ]] && [ -n "$PREV_OUT_PATH" ]; then
-        CMD+=" --loaded_light_folder \"$PREV_OUT_PATH\""
+        CMD_ESTIM+=" --loaded_light_folder \"$PREV_OUT_PATH\""
     fi
 
-    echo "Running: $CMD"
-    eval $CMD
+    echo "Running light estimation: $CMD_ESTIM"
+    eval $CMD_ESTIM
 
-    # Update previous output path
-    if [ "$PATTERN" != "grid" ]; then
-        PREV_OUT_PATH="$OUT_PATH"
+    PREV_OUT_PATH="$OUT_PATH"
+
+    if [[ " ${SOLVE_PS[@]} " =~ " ${PATTERN} " ]]; then
+        CMD_PS="$CMD"
+        OUT_PATH="$BASE_OUT_PATH/ps/${PATTERN}"
+        CMD_PS+=" --pattern PS"
+        CMD_PS+=" --out_path \"$OUT_PATH\""
+        CMD_PS+=" --loaded_light_folder \"$PREV_OUT_PATH\""
+        [ -n "$PS_STEP" ] && CMD_PS+=" --step $PS_STEP"
+        CMD_PS+=" --backend cpu"
+
+        echo "Running PS: $CMD_PS"
+        eval $CMD_PS
     fi
+
+
+
 done
