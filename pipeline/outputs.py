@@ -127,11 +127,18 @@ def export_misc(path, light_dict, validity_mask, mask, images, light_names):
         light_plot = functions.filter_args(plot_function)(**light_dict['light_values'], mask=mask, names = light_names)
         light_plot.write_html(os.path.join(path, 'light_plot.html'))
 
-def export_results(out_path, validity_mask,light_dict, mask, images, light_names):
-    export_images(os.path.join(out_path,'images'), light_dict, images, validity_mask, mask, light_names)
-    export_lightmaps(os.path.join(out_path,'lightmaps'), light_dict, mask, light_names)
-    export_values(os.path.join(out_path,'values'), light_dict, mask, validity_mask)
-    export_losses(os.path.join(out_path,'losses'), light_dict)
-    export_model(os.path.join(out_path), light_dict)
-    export_light(os.path.join(out_path,'light'), light_dict, light_names)
-    export_misc(os.path.join(out_path,'misc'), light_dict, validity_mask, mask, images, light_names)
+def export_results(out_path, validity_mask,light_dict, mask, images, light_names, skip=None):
+    if skip is None or 'images' not in skip:
+        export_images(os.path.join(out_path,'images'), light_dict, images, validity_mask, mask, light_names)
+    if skip is None or 'lightmaps' not in skip:
+        export_lightmaps(os.path.join(out_path,'lightmaps'), light_dict, mask, light_names)
+    if skip is None or 'values' not in skip:
+        export_values(os.path.join(out_path,'values'), light_dict, mask, validity_mask)
+    if skip is None or 'losses' not in skip:
+        export_losses(os.path.join(out_path,'losses'), light_dict)
+    if skip is None or 'model' not in skip:
+        export_model(os.path.join(out_path), light_dict)
+    if skip is None or 'light' not in skip:
+        export_light(os.path.join(out_path,'light'), light_dict, light_names)
+    if skip is None or 'misc' not in skip:
+        export_misc(os.path.join(out_path,'misc'), light_dict, validity_mask, mask, images, light_names)

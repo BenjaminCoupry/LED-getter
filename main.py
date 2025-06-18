@@ -38,8 +38,7 @@ def main():
             light_dict, validity_mask = ps_estimation.estimate_ps(args.iterations, values, images, mask, raycaster, shapes, output, optimizer, scale, light_dict, delta=args.delta, chunck_number = args.ps_chunck_number)
         else:
             light_dict, validity_mask = light_estimation.estimate_light(args.iterations, args.pattern, values, images, mask, raycaster, shapes, output, optimizer, scale, light_dict, delta=args.delta)
-
-        outputs.export_results(args.out_path, validity_mask, light_dict, mask, images, light_names)
+        outputs.export_results(args.out_path, validity_mask, light_dict, mask, images, light_names, skip = args.skip_export)
 
 if __name__ == "__main__":
     main()

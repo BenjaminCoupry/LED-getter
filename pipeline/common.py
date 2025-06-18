@@ -18,6 +18,10 @@ def parse_args():
         help="Lighting pattern type."
     )
     parser.add_argument(
+        '--skip_export', type=str, nargs='+', choices=['images', 'lightmaps', 'values', 'losses', 'model', 'light', 'misc'],
+        help="Exports to skip."
+    )
+    parser.add_argument(
         '--ps_images_paths', nargs='+', type=str, required=True,
         help="Photometric stereo images."
     )
