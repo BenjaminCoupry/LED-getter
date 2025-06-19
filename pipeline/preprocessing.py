@@ -17,7 +17,7 @@ def preprocess(ps_images_paths, sliced=slice(None), meshroom_project=None, align
     geom_images, n_im = (jax.numpy.maximum(0, geom_images[...,:-1] - geom_images[...,-1:]), n_im-1) if black_image_path else (geom_images, n_im)
     geom_points, geom_normals, geom_pixels = pointmap[geometric_mask], normalmap[geometric_mask], pixelmap[geometric_mask], 
     points, normals, pixels, images = geom_points[undisto_mask],geom_normals[undisto_mask], geom_pixels[undisto_mask], geom_images[undisto_mask]
-    scale = jax.numpy.max(jax.numpy.linalg.norm(points - jax.numpy.mean(points, axis=0),axis=-1))
+    scale = jax.numpy.quantile(jax.numpy.linalg.norm(points - jax.numpy.mean(points, axis=0),axis=-1), 0.95)
     mask = jax.numpy.zeros(pixelmap.shape[:2], dtype=bool).at[geometric_mask].set(undisto_mask)
     output, optimizer = logs.get_tqdm_output(tqdm_refresh), optax.adam(learning_rate)
     full_shape, shapes = iio.improps(ps_images_paths[0]).shape, (images.shape[0], n_im, n_c)
