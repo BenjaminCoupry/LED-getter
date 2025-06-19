@@ -1,4 +1,5 @@
 import jax
+import itertools
 
 def norm_vector(v, epsilon = 1e-8):
     """computes the norm and direction of vectors

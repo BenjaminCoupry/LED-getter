@@ -4,6 +4,7 @@ import ledgetter.image.lanczos as lanczos
 import ledgetter.space.rotations as rotations
 import ledgetter.space.coord_systems as coord_systems
 import ledgetter.space.spherical_harmonics as spherical_harmonics
+import ledgetter.image.grids as grids
 
 
 def get_directional_light(light_directions, dir_light_power, points):
@@ -84,7 +85,7 @@ def get_led_light(light_locations, light_power, light_principal_direction, mu, p
 
 def get_grid_light(direction_grid, intensity_grid, pixels, min_range, max_range, span=3):
     x_transform = (jax.numpy.asarray(direction_grid.shape[:2])-1)*(pixels-min_range)/(max_range-min_range)
-    grid_interpolator = lambda grid : lanczos.get_lanczos_reampler(lanczos.grid_from_array(grid), span)(x_transform)[0]
+    grid_interpolator = lambda grid : lanczos.get_lanczos_reampler(grids.grid_from_array(grid), span)(x_transform)[0]
     light_local_directions_unnormed =  jax.numpy.moveaxis(jax.lax.map(grid_interpolator, jax.numpy.moveaxis(direction_grid, 2, 0)), 0, -2)
     light_local_intensity = jax.numpy.moveaxis(jax.lax.map(grid_interpolator, jax.numpy.moveaxis(intensity_grid, 2, 0)), 0, -2)
     light_local_directions =  vector_tools.norm_vector(light_local_directions_unnormed)[1]
