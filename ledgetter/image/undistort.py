@@ -1,6 +1,7 @@
 import jax
 import ledgetter.image.lanczos as lanczos
 import ledgetter.space.coord_systems as coord_systems
+import ledgetter.image.grids as grids
 
 
 def get_scale(K, size):
@@ -80,6 +81,6 @@ def get_undistorted_image(K, distorsion, image, kernel_span):
             Function that produces undistorted image values.
     """
     scale = get_scale(K, (image.shape[1],image.shape[0]))
-    grid_function = lanczos.grid_from_array(jax.numpy.swapaxes(image, 0, 1))
+    grid_function = grids.grid_from_array(jax.numpy.swapaxes(image, 0, 1))
     undistorted_grid = get_undistorted_grid(K, scale, distorsion, grid_function, kernel_span=kernel_span)
     return undistorted_grid

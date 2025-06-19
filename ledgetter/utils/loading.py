@@ -7,7 +7,7 @@ import open3d
 import json
 import pathlib
 import ledgetter.image.undistort as undistort
-import ledgetter.image.lanczos as lanczos
+import ledgetter.image.grids as grids
 import ledgetter.image.camera as camera
 import ledgetter.utils.meshroom as meshroom
 import ledgetter.space.raycasting as raycasting
@@ -82,7 +82,7 @@ def extract_pixels(image, pixels, pose=None, kernel_span=5, batch_size=100):
         K, distorsion = jax.numpy.asarray(pose['K']), jax.numpy.asarray(pose['distorsion'])
         grid = undistort.get_undistorted_image(K, distorsion, jax.numpy.asarray(image), kernel_span)
     else: #without undistorsion
-        grid = lanczos.grid_from_array(jax.numpy.swapaxes(image, 0, 1))
+        grid = grids.grid_from_array(jax.numpy.swapaxes(image, 0, 1))
     undisto_image, mask = jax.lax.map(grid, pixels, batch_size=batch_size)
     return undisto_image, mask
 
@@ -139,7 +139,7 @@ def load_geometry(path, pixels, pose=None):
     if format in {'.npz'}: #given .npz geometry
         with numpy.load(path) as loaded:
             normalmap_loaded, mask_loaded, points_loaded = loaded['normalmap'].astype(numpy.float32), loaded['mask'], loaded['points'].astype(numpy.float32)
-        normalmap_grid, mask_grid, points_grid = lanczos.grid_from_array(jax.numpy.swapaxes(normalmap_loaded, 0, 1)), lanczos.grid_from_array(jax.numpy.swapaxes(mask_loaded, 0, 1)), lanczos.grid_from_array(jax.numpy.swapaxes(points_loaded, 0, 1))
+        normalmap_grid, mask_grid, points_grid = grids.grid_from_array(jax.numpy.swapaxes(normalmap_loaded, 0, 1)), grids.grid_from_array(jax.numpy.swapaxes(mask_loaded, 0, 1)), grids.grid_from_array(jax.numpy.swapaxes(points_loaded, 0, 1))
         geometry = lambda pixels : ((lambda mask, normalmap, points : (jax.numpy.logical_and(mask[0], mask[1]), normalmap[0], points[0]))(mask_grid(pixels), normalmap_grid(pixels), points_grid(pixels)))
         raycaster = None #TODO : raycaster from depthmap
         backend = 'cpu'
