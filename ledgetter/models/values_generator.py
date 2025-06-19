@@ -20,7 +20,8 @@ def generate_missing_values(values, values_to_generate, shapes, images, light=No
 def merge_and_generate(values, light_values, values_to_generate, shapes, images, light=None):
     merged_values = merge_light_values(values, light_values)
     generated_values = generate_missing_values(merged_values, values_to_generate, shapes, images, light=light)
-    return generated_values
+    filtered_generated_values = {k: v for k, v in generated_values.items() if k in values_to_generate}
+    return filtered_generated_values
 
 def split_parameters_data(values, wanted_params, wanted_data):
     parameters, data = chuncks.split_dict(values, (set(wanted_params), set(wanted_data)))
