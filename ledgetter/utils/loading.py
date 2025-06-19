@@ -150,7 +150,7 @@ def load_geometry(path, pixels, pose=None):
         mesh = load_mesh(mesh_path, transform)
         raycaster = raycasting.get_mesh_raycaster(mesh)
         geometry = camera.get_geometry(raycaster, K)
-        backend = jax.default_backend()
+        backend = None
     else:
         raise ValueError(f"Unknown geometry format: {format}")
     mask, normals, points = jax.jit(geometry, backend = backend)(pixels)
