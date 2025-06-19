@@ -228,7 +228,7 @@ def load_light_values(path, light_names=None):
     format = pathlib.Path(path).suffix.lower()
     if format in {'.npz'}:
         with numpy.load(path) as light_archive:
-            light_values = {k:v for k, v in light_archive.items() if k not in {'mask', 'validity_mask'}}
+            light_values = {k: jax.numpy.asarray(v) for k, v in light_archive.items() if k not in {'mask', 'validity_mask'}}
     elif format in {'.lp'} and light_names is not None:
         names_dir = numpy.loadtxt(path,skiprows=1,dtype=str,usecols=0)
         unsorted_dir = numpy.loadtxt(path,skiprows=1,dtype=float,usecols=(1,2,3))
