@@ -19,7 +19,7 @@ def get_ps_minimizer(iterations, model, loss, optimizer, projections):
         return parameters['rho'], parameters['normals'], losses_values
     return minimize
 
-def estimate_ps(iterations, values, images, mask, raycaster, shapes, output, optimizer, scale, light_dict, delta=0.01, chunck_number = 100):
+def estimate_ps(iterations, values, images, mask, raycaster, shapes, output, optimizer, scale, light_dict, delta=0.01, chunck_number = 100, return_ps_only=True):
     model, validity_masker = defaults.get_default('PS', raycaster, scale)
     light, renderer, projections = models.get_model(model)
     loss = models.get_loss(light, renderer, delta=delta)
@@ -32,7 +32,8 @@ def estimate_ps(iterations, values, images, mask, raycaster, shapes, output, opt
         validity_mask = validity_masker(shapes = chunck_shapes, images=images, light=light, **values)
         with jax.default_device(jax.devices("gpu")[0]):
             (losses_values_ps, ), updated_values = minimize(images, validity_mask, **values)
-        chuncked_values, atomic_values = chuncks.split_dict(values | updated_values | {'validity_mask' : validity_mask}, models.is_pixelwise)
+        to_split = (dict() if return_ps_only else values) | updated_values | {'validity_mask' : validity_mask}
+        chuncked_values, atomic_values = chuncks.split_dict(to_split, models.is_pixelwise)
         losses_sum, n, _ = state
         state, metric = (losses_sum + jax.numpy.nansum(losses_values_ps, axis=0), n+chunck_elems, atomic_values), losses_sum[-1]/n
         return chuncked_values, state, metric

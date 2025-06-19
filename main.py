@@ -35,7 +35,8 @@ def main():
             )
         
         if is_ps:
-            light_dict, validity_mask = ps_estimation.estimate_ps(args.iterations, values, images, mask, raycaster, shapes, output, optimizer, scale, light_dict, delta=args.delta, chunck_number = args.ps_chunck_number)
+            return_ps_only = all(s in args.skip_export for s in ('images', 'lightmaps', 'light', 'misc'))
+            light_dict, validity_mask = ps_estimation.estimate_ps(args.iterations, values, images, mask, raycaster, shapes, output, optimizer, scale, light_dict, delta=args.delta, chunck_number = args.ps_chunck_number, return_ps_only=return_ps_only)
         else:
             light_dict, validity_mask = light_estimation.estimate_light(args.iterations, args.pattern, values, images, mask, raycaster, shapes, output, optimizer, scale, light_dict, delta=args.delta)
         outputs.export_results(args.out_path, validity_mask, light_dict, mask, images, light_names, skip = args.skip_export)

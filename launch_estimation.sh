@@ -80,7 +80,7 @@ if [[ " ${SOLVE_PS[@]} " =~ " ${PATTERN} " ]]; then
         [ -n "$PS_STEP" ] && CMD_PS+=" --step $PS_STEP"
         CMD_PS+=" --slice_i $SLICE_I"
         CMD_PS+=" --backend cpu"
-        CMD_PS+=" --skip_export images lightmaps losses model light misc"
+        CMD_PS+=" --skip_export images lightmaps light misc"
 
         echo "Running PS (slice $SLICE_I): $CMD_PS"
         eval $CMD_PS
