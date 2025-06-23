@@ -78,4 +78,9 @@ def parse_args():
         help="Backend for heavy computations."
     )
 
+    parser.add_argument(
+        '--pixel_step', type=int, default=None,
+        help="Size of pixel step for grid light estimation."
+    )
+
     return parser.parse_args()

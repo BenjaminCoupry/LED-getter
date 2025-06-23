@@ -11,6 +11,7 @@ import itertools
 def main():
     args = common.parse_args()
     is_ps = args.pattern == 'PS'
+    added_values = {} if args.pixel_step is not None else {'pixel_step': args.pixel_step}
     chuncker, n_chuncks = chuncks.get_chuncker((args.step, args.step))
     slicer = chuncker if is_ps else itertools.islice(chuncker, n_chuncks-1, None, None)
     for i, sliced in enumerate(slicer):
@@ -29,7 +30,7 @@ def main():
                     load_light_function=is_ps,
                     learning_rate=args.learning_rate,
                     tqdm_refresh=args.tqdm_refresh,
-                    added_values={}
+                    added_values=added_values
                 )
             
             if is_ps:
