@@ -45,8 +45,10 @@ def rotation_between_vectors(v1, v2, free_rotation):
     rotation = jax.numpy.matmul(axis_angle_to_matrix(v2, free_rotation), axis_angle_to_matrix(axis, angle))
     return rotation
 
-def estimate_optimal_rotation(vectors_source, vectors_dest):
-    H = jax.numpy.einsum('...ki,...kj->...ij',vectors_dest, vectors_source)
+def estimate_optimal_rotation(vectors_source, vectors_dest, weights=None):
+    if weights is None:
+        weights = jax.numpy.ones(jax.numpy.broadcast_shapes(vectors_dest.shape[:-1], vectors_source.shape[:-1]))
+    H = jax.numpy.einsum('...ki,...kj,...k->...ij',vectors_dest, vectors_source, weights)
     U,_,Vh = jax.numpy.linalg.svd(H)
     det_product = jax.numpy.linalg.det(U)*jax.numpy.linalg.det(Vh)
     d = jax.numpy.ones(U.shape[:-2]+(H.shape[-1],)).at[...,-1].set(det_product)

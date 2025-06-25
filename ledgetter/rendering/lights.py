@@ -1,11 +1,12 @@
 import jax
 import ledgetter.utils.vector_tools as vector_tools
-import ledgetter.image.lanczos as lanczos
+import ledgetter.image.filters as filters
 import ledgetter.image.grids as grids
 import ledgetter.space.rotations as rotations
 import ledgetter.space.coord_systems as coord_systems
 import ledgetter.space.spherical_harmonics as spherical_harmonics
 
+#todo experimenter avec les vectorize
 
 def get_directional_light(light_directions, dir_light_power, points):
     """
@@ -42,7 +43,7 @@ def get_rail_light(center, light_distance, light_directions, dir_light_power, po
     light_locations = center + light_distance*light_directions
     light_local_distances, light_local_directions = vector_tools.norm_vector(light_locations - jax.numpy.expand_dims(points, axis=-2))
     light_local_power = jax.numpy.expand_dims(dir_light_power * jax.numpy.square(light_distance), axis=-2) / jax.numpy.square(light_local_distances)
-    light_local_intensity =  jax.numpy.expand_dims(light_local_power, axis=-1)
+    light_local_intensity = jax.numpy.broadcast_to(jax.numpy.expand_dims(light_local_power, axis=-1), dir_light_power.shape + (3,))
     return light_local_directions, light_local_intensity
 
 def get_isotropic_punctual_light(light_locations, light_power, points):
@@ -59,7 +60,7 @@ def get_isotropic_punctual_light(light_locations, light_power, points):
     """
     light_local_distances, light_local_directions = vector_tools.norm_vector(light_locations - jax.numpy.expand_dims(points, axis=-2))
     light_local_power = jax.numpy.expand_dims(light_power, axis=-2) / jax.numpy.square(light_local_distances)
-    light_local_intensity =  jax.numpy.expand_dims(light_local_power, axis=-1)
+    light_local_intensity = jax.numpy.broadcast_to(jax.numpy.expand_dims(light_local_power, axis=-1), light_power.shape + (3,))
     return light_local_directions, light_local_intensity
 
 def get_led_light(light_locations, light_power, light_principal_direction, mu, points):
@@ -85,10 +86,11 @@ def get_led_light(light_locations, light_power, light_principal_direction, mu, p
 
 def get_grid_light(direction_grid, intensity_grid, pixels, min_range, max_range, span=3):
     x_transform = (jax.numpy.asarray(direction_grid.shape[:2])-1)*(pixels-min_range)/(max_range-min_range)
-    grid_interpolator = lambda grid : lanczos.get_lanczos_reampler(grids.grid_from_array(grid), span)(x_transform)[0]
-    light_local_directions_unnormed =  jax.numpy.moveaxis(jax.lax.map(grid_interpolator, jax.numpy.moveaxis(direction_grid, 2, 0)), 0, -2)
-    light_local_intensity = jax.numpy.moveaxis(jax.lax.map(grid_interpolator, jax.numpy.moveaxis(intensity_grid, 2, 0)), 0, -2)
+    grid_interpolator = lambda grid : filters.get_lanczos_reampler(grids.get_grid_from_array(grid), span)(x_transform)[0]
+    light_local_directions_unnormed =  grid_interpolator(direction_grid)
+    light_local_intensity_interp = grid_interpolator(intensity_grid)
     light_local_directions =  vector_tools.norm_vector(light_local_directions_unnormed)[1]
+    light_local_intensity = jax.numpy.broadcast_to(jax.numpy.expand_dims(light_local_intensity_interp, axis=-1), light_local_intensity_interp.shape + (3,))
     return light_local_directions, light_local_intensity
 
 def get_constant_light(light_local_direction, light_local_intensity):
