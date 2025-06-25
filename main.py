@@ -1,3 +1,7 @@
+import os
+os.environ["XLA_PYTHON_CLIENT_MEM_FRACTION"] = "0.95"
+os.environ["XLA_PYTHON_CLIENT_PREALLOCATE"] = "true"
+
 import pipeline.common as common
 import pipeline.preprocessing as preprocessing
 import pipeline.outputs as outputs
@@ -5,7 +9,6 @@ import pipeline.light_estimation as light_estimation
 import pipeline.ps_estimation as ps_estimation
 import ledgetter.utils.chuncks as chuncks
 import jax
-import os
 import itertools
 
 def main():
