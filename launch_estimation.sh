@@ -35,6 +35,8 @@ PS_CHUNCK_NUMBER=100
 
 PREV_OUT_PATH=""
 
+cp "$0" "$BASE_OUT_PATH/$(basename "$0")"
+
 for PATTERN in "${PATTERN_LIST[@]}"; do
     echo "=== Processing pattern: $PATTERN ==="
 
