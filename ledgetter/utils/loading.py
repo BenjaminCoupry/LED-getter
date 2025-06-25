@@ -82,7 +82,7 @@ def extract_pixels(image, pixels, pose=None, kernel_span=5, batch_size=100):
         K, distorsion = jax.numpy.asarray(pose['K']), jax.numpy.asarray(pose['distorsion'])
         grid = undistort.get_undistorted_image(K, distorsion, jax.numpy.asarray(image), kernel_span)
     else: #without undistorsion
-        grid = grids.grid_from_array(jax.numpy.swapaxes(image, 0, 1))
+        grid = grids.get_grid_from_array(jax.numpy.swapaxes(image, 0, 1))
     undisto_image, mask = jax.lax.map(grid, pixels, batch_size=batch_size)
     return undisto_image, mask
 
@@ -138,8 +138,22 @@ def load_geometry(path, pixels, pose=None):
     format = pathlib.Path(path).suffix.lower()
     if format in {'.npz'}: #given .npz geometry
         with numpy.load(path) as loaded:
-            normalmap_loaded, mask_loaded, points_loaded = loaded['normalmap'].astype(numpy.float32), loaded['mask'], loaded['points'].astype(numpy.float32)
-        normalmap_grid, mask_grid, points_grid = grids.grid_from_array(jax.numpy.swapaxes(normalmap_loaded, 0, 1)), grids.grid_from_array(jax.numpy.swapaxes(mask_loaded, 0, 1)), grids.grid_from_array(jax.numpy.swapaxes(points_loaded, 0, 1))
+            mask_loaded = loaded['mask']
+            if 'normalmap' in loaded:
+                normalmap_loaded = loaded['normalmap'].astype(numpy.float32)
+            elif 'normals' in loaded:
+                normals_loaded = loaded['normals'].astype(numpy.float32)
+                normalmap_loaded = normals_loaded if normals_loaded.ndim == 3 else vector_tools.build_masked(mask_loaded, normals_loaded)
+            else:
+                raise ValueError(f"No normals found in {path}")
+            if 'pointmap' in loaded:
+                pointmap_loaded = loaded['pointmap'].astype(numpy.float32)
+            elif 'points' in loaded:
+                points_loaded = loaded['points'].astype(numpy.float32)
+                pointmap_loaded = points_loaded if points_loaded.ndim == 3 else vector_tools.build_masked(mask_loaded, points_loaded)
+            else:
+                raise ValueError(f"No points found in {path}")
+        normalmap_grid, mask_grid, points_grid = grids.get_grid_from_array(jax.numpy.swapaxes(normalmap_loaded, 0, 1)), grids.get_grid_from_array(jax.numpy.swapaxes(mask_loaded, 0, 1)), grids.get_grid_from_array(jax.numpy.swapaxes(pointmap_loaded, 0, 1))
         geometry = lambda pixels : ((lambda mask, normalmap, points : (jax.numpy.logical_and(mask[0], mask[1]), normalmap[0], points[0]))(mask_grid(pixels), normalmap_grid(pixels), points_grid(pixels)))
         raycaster = None #TODO : raycaster from depthmap
         backend = 'cpu'
