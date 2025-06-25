@@ -42,7 +42,7 @@ def main():
                 light_dict, validity_mask = light_estimation.estimate_light(args.iterations, args.pattern, values, images, mask, raycaster, shapes, output, optimizer, scale, light_dict, delta=args.delta)
 
             real_out_path = os.path.join(args.out_path, f"{i:05d}") if is_ps else args.out_path
-            outputs.export_results(real_out_path, validity_mask, light_dict, mask, images, light_names)
+            outputs.export_results(real_out_path, validity_mask, light_dict, mask, images, light_names, skip = args.skip_export)
 
 if __name__ == "__main__":
     main()
