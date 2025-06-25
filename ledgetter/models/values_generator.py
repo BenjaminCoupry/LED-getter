@@ -102,14 +102,14 @@ def init_sh_light(shapes, mu, l_max=5):
         'l_max': l_max
     }
 
-@functions.generator(inputs=['pixels'], outputs=['direction_grid', 'intensity_grid', 'min_range', 'max_range'], registry=registry)
+@functions.generator(inputs=['pixels', 'light_directions', 'dir_light_power'], outputs=['direction_grid', 'intensity_grid', 'min_range', 'max_range'], registry=registry)
 @functions.filter_args
-def init_grid(shapes, pixels, pixel_step):
+def init_grid(shapes, pixels, light_directions, dir_light_power, pixel_step):
     (n_pix, n_im, n_c) = shapes
     min_range, max_range = jax.numpy.min(pixels, axis=0), jax.numpy.max(pixels, axis=0)
     nx, ny = int((max_range[0]-min_range[0])/pixel_step), int((max_range[1]-min_range[1])/pixel_step)
-    direction_grid = jax.numpy.zeros((nx, ny ,n_im, 3)).at[:,:,:,2].set(-1)
-    intensity_grid = jax.numpy.ones((nx, ny ,n_im, 1))
+    direction_grid = jax.numpy.tile(light_directions, (nx, ny, 1, 1))
+    intensity_grid = jax.numpy.tile(dir_light_power, (nx, ny, 1))
     return {
         'direction_grid': direction_grid,
         'intensity_grid': intensity_grid,
