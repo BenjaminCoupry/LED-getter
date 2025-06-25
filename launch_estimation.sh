@@ -51,7 +51,8 @@ for PATTERN in "${PATTERN_LIST[@]}"; do
     PREV_OUT_PATH="$OUT_PATH"
 
 if [[ " ${SOLVE_PS[@]} " =~ " ${PATTERN} " ]]; then
-    for (( SLICE_I=0; SLICE_I<PS_STEP*PS_STEP; SLICE_I++ )); do
+    TOTAL_SLICES=$((PS_STEP * PS_STEP - 1))
+    for (( SLICE_I=0; SLICE_I<=TOTAL_SLICES; SLICE_I++ )); do
         CMD_PS="$CMD"
         SLICE_DIR=$(printf "slice_%05d" "$SLICE_I")
         OUT_PATH="$BASE_OUT_PATH/ps/${PATTERN}/${SLICE_DIR}"
@@ -63,7 +64,7 @@ if [[ " ${SOLVE_PS[@]} " =~ " ${PATTERN} " ]]; then
         CMD_PS+=" --backend cpu"
         CMD_PS+=" --skip_export images lightmaps light misc"
 
-        echo "Running PS (slice $SLICE_I): $CMD_PS"
+        echo "Running PS (slice $SLICE_I/$TOTAL_SLICES): $CMD_PS"
         eval $CMD_PS
     done
 fi
