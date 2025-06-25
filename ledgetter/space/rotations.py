@@ -18,6 +18,13 @@ def axis_angle_to_matrix(axis, angle):
     R = jax.numpy.eye(3) + jax.numpy.expand_dims(jax.numpy.sin(angle), axis=(-1,-2)) * K + jax.numpy.expand_dims(1 - jax.numpy.cos(angle), axis=(-1,-2)) * jax.numpy.matmul(K, K)
     return R
 
+def matrix_to_axis_angle(R):
+    trace = jax.numpy.trace(R, axis1=-2, axis2=-1)
+    angle = jax.numpy.arccos(jax.numpy.clip(0.5*(trace-1), -1, 1))
+    direction = jax.numpy.stack([R[...,2,1]-R[...,1,2], R[...,0,2]-R[...,2,0], R[...,1,0]-R[...,0,1]], axis=-1)
+    axis = vector_tools.norm_vector(direction)[1]
+    return axis, angle
+
 def rotation_between_vectors(v1, v2, free_rotation):
     """
     Computes the rotation matrix that aligns vector `v1` to vector `v2`, 
@@ -37,3 +44,13 @@ def rotation_between_vectors(v1, v2, free_rotation):
     angle = jax.numpy.arcsin(jax.numpy.clip(angle_sin, 1e-5, 1-1e-5))
     rotation = jax.numpy.matmul(axis_angle_to_matrix(v2, free_rotation), axis_angle_to_matrix(axis, angle))
     return rotation
+
+def estimate_optimal_rotation(vectors_source, vectors_dest, weights=None):
+    if weights is None:
+        weights = jax.numpy.ones(jax.numpy.broadcast_shapes(vectors_dest.shape[:-1], vectors_source.shape[:-1]))
+    H = jax.numpy.einsum('...ki,...kj,...k->...ij',vectors_dest, vectors_source, weights)
+    U,_,Vh = jax.numpy.linalg.svd(H)
+    det_product = jax.numpy.linalg.det(U)*jax.numpy.linalg.det(Vh)
+    d = jax.numpy.ones(U.shape[:-2]+(H.shape[-1],)).at[...,-1].set(det_product)
+    R = jax.numpy.einsum('...uk, ...k, ...kj->...uj', U, d, Vh)
+    return R

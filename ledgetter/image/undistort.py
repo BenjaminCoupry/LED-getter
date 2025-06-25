@@ -1,5 +1,5 @@
 import jax
-import ledgetter.image.lanczos as lanczos
+import ledgetter.image.filters as filters
 import ledgetter.space.coord_systems as coord_systems
 import ledgetter.image.grids as grids
 
@@ -43,30 +43,6 @@ def get_coordinates_transform(K, scale, distorsion):
         return transformed_coordinates
     return coordinates_transform
 
-def get_undistorted_grid(K, scale, distorsion, grid_function, kernel_span):
-    """Creates a function to undistort and resample a grid.
-
-    Args:
-        K (Array 3,3): Camera intrinsic matrix.
-        scale (float): Scaling factor.
-        distorsion (Array 3,): Radial distortion coefficients.
-        grid_function (Callable): 
-            Function retrieving grid values.
-        kernel_span (int): Lanczos kernel span.
-
-    Returns:
-        Callable: 
-            Function that undistorts and resamples the grid.
-    """
-    coordinates_transform = get_coordinates_transform(K, scale, distorsion)
-    resampler = lanczos.get_lanczos_reampler(grid_function, kernel_span)
-    def undistorted_grid(coordinates):
-        transformed_coordinates = coordinates_transform(coordinates)
-        resampled, padded = resampler(transformed_coordinates)
-        mask = padded == 0
-        return resampled, mask
-    return undistorted_grid
-
 def get_undistorted_image(K, distorsion, image, kernel_span):
     """Generates an undistorted version of an image.
 
@@ -81,6 +57,11 @@ def get_undistorted_image(K, distorsion, image, kernel_span):
             Function that produces undistorted image values.
     """
     scale = get_scale(K, (image.shape[1],image.shape[0]))
-    grid_function = grids.grid_from_array(jax.numpy.swapaxes(image, 0, 1))
-    undistorted_grid = get_undistorted_grid(K, scale, distorsion, grid_function, kernel_span=kernel_span)
+    grid_function = grids.get_grid_from_array(jax.numpy.swapaxes(image, 0, 1))
+    coordinates_transform = get_coordinates_transform(K, scale, distorsion)
+    resampler = filters.get_lanczos_reampler(grid_function, kernel_span)
+    def undistorted_grid(coordinates):
+        transformed_coordinates = coordinates_transform(coordinates)
+        resampled, mask = resampler(transformed_coordinates)
+        return resampled, mask
     return undistorted_grid

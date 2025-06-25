@@ -23,6 +23,9 @@ LEARNING_RATE=0.001
 ITERATIONS=10000
 TQDM_REFRESH=1
 
+#Light estimation (set to empty string "" to omit them)
+PIXEL_STEP="800"
+
 # Photometric stereo (set to empty string "" to omit them)
 ESTIM_STEP=10
 PS_STEP=4
@@ -31,6 +34,8 @@ PS_CHUNCK_NUMBER=100
 ### === EXECUTION ===
 
 PREV_OUT_PATH=""
+
+cp "$0" "$BASE_OUT_PATH/$(basename "$0")"
 
 for PATTERN in "${PATTERN_LIST[@]}"; do
     echo "=== Processing pattern: $PATTERN ==="
@@ -60,6 +65,7 @@ for PATTERN in "${PATTERN_LIST[@]}"; do
     CMD_ESTIM+=" --backend gpu"
     CMD_ESTIM+=" --slice_i 0"
     [ -n "$ESTIM_STEP" ] && CMD_ESTIM+=" --step $ESTIM_STEP"
+    [ "$PATTERN" = "grid" ] && [ -n "$PIXEL_STEP" ] && CMD_ESTIM+=" --pixel_step $PIXEL_STEP"
     if [[ ! " ${SKIP_LIGHT_LOAD[@]} " =~ " ${PATTERN} " ]] && [ -n "$PREV_OUT_PATH" ]; then
         CMD_ESTIM+=" --loaded_light_folder \"$PREV_OUT_PATH\""
     fi
