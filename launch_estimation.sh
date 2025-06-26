@@ -51,8 +51,8 @@ for PATTERN in "${PATTERN_LIST[@]}"; do
     ESTIM_SCRIPT_PATH="$ESTIM_OUT_PATH/estim.sh"
     echo "#!/bin/bash" > "$ESTIM_SCRIPT_PATH"
     chmod +x "$ESTIM_SCRIPT_PATH"
-    printf "%q " $CMD_ESTIM >> "$ESTIM_SCRIPT_PATH"
-    printf "\n" >> "$ESTIM_SCRIPT_PATH"
+    echo  "$CMD_ESTIM" >> "$ESTIM_SCRIPT_PATH"
+    echo "" >> "$ESTIM_SCRIPT_PATH"
     
     eval $CMD_ESTIM
 
@@ -79,8 +79,8 @@ for PATTERN in "${PATTERN_LIST[@]}"; do
             CMD_PS+=" --backend cpu"
             CMD_PS+=" --skip_export images lightmaps light misc"
 
-            printf "%q " $CMD_PS >> "$PS_SCRIPT_PATH"
-            printf "\n" >> "$PS_SCRIPT_PATH"
+            echo "$CMD_PS" >> "$PS_SCRIPT_PATH"
+            echo "" >> "$PS_SCRIPT_PATH"
             echo "Running PS (slice $SLICE_I/$TOTAL_SLICES): $CMD_PS"
             eval $CMD_PS
         done
