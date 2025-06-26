@@ -34,9 +34,9 @@ for PATTERN in "${PATTERN_LIST[@]}"; do
     
 
     CMD_ESTIM="$CMD"
-    OUT_PATH="$BASE_OUT_PATH/light/${PATTERN}"
+    ESTIM_OUT_PATH="$BASE_OUT_PATH/light/${PATTERN}"
     CMD_ESTIM+=" --pattern $PATTERN"
-    CMD_ESTIM+=" --out_path \"$OUT_PATH\""
+    CMD_ESTIM+=" --out_path \"$ESTIM_OUT_PATH\""
     CMD_ESTIM+=" --backend gpu"
     CMD_ESTIM+=" --slice_i 0"
     [ -n "$ESTIM_STEP" ] && CMD_ESTIM+=" --step $ESTIM_STEP"
@@ -46,29 +46,44 @@ for PATTERN in "${PATTERN_LIST[@]}"; do
     fi
 
     echo "Running light estimation: $CMD_ESTIM"
+
+    mkdir -p "$ESTIM_OUT_PATH"
+    ESTIM_SCRIPT_PATH="$ESTIM_OUT_PATH/estim.sh"
+    echo "#!/bin/bash" > "$ESTIM_SCRIPT_PATH"
+    chmod +x "$ESTIM_SCRIPT_PATH"
+    printf "%q " $CMD_ESTIM >> "$ESTIM_SCRIPT_PATH"
+    printf "\n" >> "$ESTIM_SCRIPT_PATH"
+    
     eval $CMD_ESTIM
 
-    PREV_OUT_PATH="$OUT_PATH"
+    PREV_OUT_PATH="$ESTIM_OUT_PATH"
 
-if [[ " ${SOLVE_PS[@]} " =~ " ${PATTERN} " ]]; then
-    TOTAL_SLICES=$((PS_STEP * PS_STEP - 1))
-    for (( SLICE_I=0; SLICE_I<=TOTAL_SLICES; SLICE_I++ )); do
-        CMD_PS="$CMD"
-        SLICE_DIR=$(printf "slice_%05d" "$SLICE_I")
-        OUT_PATH="$BASE_OUT_PATH/ps/${PATTERN}/${SLICE_DIR}"
-        CMD_PS+=" --pattern PS"
-        CMD_PS+=" --out_path \"$OUT_PATH\""
-        CMD_PS+=" --loaded_light_folder \"$PREV_OUT_PATH\""
-        [ -n "$PS_STEP" ] && CMD_PS+=" --step $PS_STEP"
-        CMD_PS+=" --slice_i $SLICE_I"
-        CMD_PS+=" --backend cpu"
-        CMD_PS+=" --skip_export images lightmaps light misc"
+    PSS_OUT_PATH="$BASE_OUT_PATH/ps/${PATTERN}"
 
-        echo "Running PS (slice $SLICE_I/$TOTAL_SLICES): $CMD_PS"
-        eval $CMD_PS
-    done
-fi
+    mkdir -p "$PSS_OUT_PATH"
+    PS_SCRIPT_PATH="$PSS_OUT_PATH/ps.sh"
+    echo "#!/bin/bash" > "$PS_SCRIPT_PATH"
+    chmod +x "$PS_SCRIPT_PATH"    
 
+    if [[ " ${SOLVE_PS[@]} " =~ " ${PATTERN} " ]]; then
+        TOTAL_SLICES=$((PS_STEP * PS_STEP - 1))
+        for (( SLICE_I=0; SLICE_I<=TOTAL_SLICES; SLICE_I++ )); do
+            CMD_PS="$CMD"
+            SLICE_DIR=$(printf "slice_%05d" "$SLICE_I")
+            PS_OUT_PATH="$PSS_OUT_PATH/${SLICE_DIR}"
+            CMD_PS+=" --pattern PS"
+            CMD_PS+=" --out_path \"$PS_OUT_PATH\""
+            CMD_PS+=" --loaded_light_folder \"$PREV_OUT_PATH\""
+            [ -n "$PS_STEP" ] && CMD_PS+=" --step $PS_STEP"
+            CMD_PS+=" --slice_i $SLICE_I"
+            CMD_PS+=" --backend cpu"
+            CMD_PS+=" --skip_export images lightmaps light misc"
 
+            printf "%q " $CMD_PS >> "$PS_SCRIPT_PATH"
+            printf "\n" >> "$PS_SCRIPT_PATH"
+            echo "Running PS (slice $SLICE_I/$TOTAL_SLICES): $CMD_PS"
+            eval $CMD_PS
+        done
+    fi
 
 done
