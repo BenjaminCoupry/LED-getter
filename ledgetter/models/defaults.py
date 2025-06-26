@@ -49,7 +49,8 @@ def get_default(name, raycaster, scale):
             data = { 'points', 'pixels', 'light_local_direction', 'light_local_intensity'}
             parameters = {'normals', 'rho'}
             model = {'light':'constant', 'renderers':['lambertian'], 'parameters':parameters, 'data':data}
-            validity_masker = models.get_valid({'validity_maskers':['intensity', 'cast_shadow', 'morphology'], 'options' : valid_options})
+            valid_options={'local_threshold':0.5, 'global_threshold':0.1, 'raycaster' : raycaster, 'radius' : 0.0005*scale}
+            validity_masker = models.get_valid({'validity_maskers':['intensity', 'cast_shadow'], 'options' : valid_options})
             return model, validity_masker
         case _:
             raise ValueError(f"Unknown default name: {name}")
