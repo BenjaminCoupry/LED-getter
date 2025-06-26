@@ -7,7 +7,7 @@ source "$CONFIG_FILE"
 
 PREV_OUT_PATH=""
 
-cp "$0" "$BASE_OUT_PATH/$(basename "$0")"
+mkdir -p "$BASE_OUT_PATH"
 [ -f "$CONFIG_FILE" ] && cp "$CONFIG_FILE" "$BASE_OUT_PATH/$(basename "$CONFIG_FILE")"
 
 echo "Using config file: $CONFIG_FILE"
