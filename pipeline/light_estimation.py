@@ -18,7 +18,7 @@ def estimate_light(iterations, pattern, values, images, mask, raycaster, shapes,
     model, validity_masker = defaults.get_default(pattern, raycaster, scale)
     values = values_generator.merge_and_generate(values, light_dict['light_values'], model['parameters'] | model['data'], shapes, images)
     parameters, data = values_generator.split_parameters_data(values, model['parameters'], model['data'])
-    validity_mask = validity_masker(shapes = shapes, images=images, mask=mask, light=light_dict['light'], **data, **parameters)
+    validity_mask = validity_masker(shapes = shapes, images=images, mask=mask, light=light_dict['light'], **light_dict['light_values'])
     light, renderer, projections = models.get_model(model)
     loss = models.get_loss(light, renderer, delta=delta)
     parameters, losses_values = jax.jit(functools.partial(gradient_descent.get_gradient_descent(optimizer, loss, iterations, projections=projections, output=output, extra = True, unroll=1), data=data, images=images, validity_mask=validity_mask))(parameters)

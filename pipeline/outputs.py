@@ -91,10 +91,10 @@ def export_model(path, light_dict):
     with open(os.path.join(path, 'model.json'), 'w', encoding='utf-8') as f:
         json.dump(model, f, ensure_ascii=False, indent=2, default=lambda o: list(o) if isinstance(o, set) else o)
 
-def export_light(path, light_dict, light_names):
+def export_light(path, light_dict, validity_mask, light_names):
     os.makedirs(os.path.join(path), exist_ok=True)
     light_direction, light_intensity = light_dict['light'](**light_dict['light_values'])
-    L0, Phi = vector_tools.norm_vector(jax.numpy.mean(light_direction, axis=0))[1], numpy.mean(light_intensity, axis=0)
+    L0, Phi = vector_tools.norm_vector(jax.numpy.mean(light_direction, where=validity_mask[:,:,None], axis=0))[1], numpy.mean(light_intensity, where=validity_mask[:,:,None], axis=0)
     str_L0, str_Phi = numpy.asarray(L0).astype(str), numpy.asarray(Phi).astype(str)
     names_array = numpy.asarray(light_names,dtype=str)[:,None]
     XL0 = numpy.concatenate([names_array,str_L0],axis=-1)
@@ -127,7 +127,7 @@ def export_misc(path, light_dict, validity_mask, mask, images, light_names):
         light_plot = functions.filter_args(plot_function)(**light_dict['light_values'], mask=mask, names = light_names)
         light_plot.write_html(os.path.join(path, 'light_plot.html'))
 
-def export_results(out_path, validity_mask,light_dict, mask, images, light_names, skip=None):
+def export_results(out_path, validity_mask, light_dict, mask, images, light_names, skip=None):
     if skip is None or 'images' not in skip:
         export_images(os.path.join(out_path,'images'), light_dict, images, validity_mask, mask, light_names)
     if skip is None or 'lightmaps' not in skip:
@@ -139,6 +139,6 @@ def export_results(out_path, validity_mask,light_dict, mask, images, light_names
     if skip is None or 'model' not in skip:
         export_model(os.path.join(out_path), light_dict)
     if skip is None or 'light' not in skip:
-        export_light(os.path.join(out_path,'light'), light_dict, light_names)
+        export_light(os.path.join(out_path,'light'), light_dict, validity_mask, light_names)
     if skip is None or 'misc' not in skip:
         export_misc(os.path.join(out_path,'misc'), light_dict, validity_mask, mask, images, light_names)
