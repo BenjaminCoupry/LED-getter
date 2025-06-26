@@ -5,7 +5,6 @@ source "$CONFIG_FILE"
 
 ### === EXECUTION ===
 
-PREV_OUT_PATH=""
 
 mkdir -p "$BASE_OUT_PATH"
 [ -f "$CONFIG_FILE" ] && cp "$CONFIG_FILE" "$BASE_OUT_PATH/$(basename "$CONFIG_FILE")"
