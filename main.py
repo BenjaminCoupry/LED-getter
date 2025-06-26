@@ -14,7 +14,7 @@ import itertools
 def main():
     args = common.parse_args()
     is_ps = args.pattern == 'PS'
-    added_values = {} if args.pixel_step is not None else {'pixel_step': args.pixel_step}
+    added_values = {} if args.pixel_step is None else {'pixel_step': args.pixel_step}
     chuncker, _ = chuncks.get_chuncker((args.step, args.step))
     sliced = next(itertools.islice(chuncker, args.slice_i, args.slice_i + 1, None))
     with jax.default_device(jax.devices(args.backend)[0]):
