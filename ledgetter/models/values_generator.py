@@ -108,7 +108,7 @@ def init_sh_light(shapes, mu, l_max=5):
 def init_grid(shapes, pixels, light_directions, dir_light_power, pixel_step):
     (n_pix, n_im, n_c) = shapes
     min_range, max_range = jax.numpy.min(pixels, axis=0), jax.numpy.max(pixels, axis=0)
-    nx, ny = int((max_range[0]-min_range[0])/pixel_step), int((max_range[1]-min_range[1])/pixel_step)
+    nx, ny = max(2, int((max_range[0]-min_range[0])/pixel_step)), max(2, int((max_range[1]-min_range[1])/pixel_step))
     direction_grid = jax.numpy.tile(light_directions, (nx, ny, 1, 1))
     intensity_grid = jax.numpy.tile(dir_light_power, (nx, ny, 1))
     return {
