@@ -87,7 +87,7 @@ for PATTERN in "${PATTERN_LIST[@]}"; do
             eval $CMD_PS
         done
 
-        CMD_MERGE="python estimate.py --backend cpu --out_path \"$PSS_OUT_PATH/merged\" --paths $TO_MERGE"
+        CMD_MERGE="python merge.py --backend cpu --out_path \"$PSS_OUT_PATH/merged\" --paths $TO_MERGE"
 
         echo "$CMD_MERGE" >> "$PS_SCRIPT_PATH"
         echo "" >> "$PS_SCRIPT_PATH"
