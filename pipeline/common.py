@@ -9,8 +9,24 @@ def update_light_dict(light_dict, name=None, losses_values=None, model=None, val
                        'losses' : new_losses}
     return light_dict
 
+def parse_merge_args():
+    parser = argparse.ArgumentParser(description="Merge sliced values")
+    parser.add_argument(
+        '--backend', type=str, default='gpu', choices=['cpu', 'gpu'],
+        help="Backend for heavy computations."
+    )
+    parser.add_argument(
+        '--out_path', type=str, required=True,
+        help="Output path for the merged values."
+    )
+    parser.add_argument(
+        '--paths', nargs='+', type=str, required=True,
+        help="Ordered paths to sliced values."
+    )
+    return parser.parse_args()
 
-def parse_args():
+
+def parse_main_args():
     parser = argparse.ArgumentParser(description="Estimate light for photometric stereo")
 
     parser.add_argument(
