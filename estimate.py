@@ -12,7 +12,7 @@ import jax
 import itertools
 
 def main():
-    args = common.parse_args()
+    args = common.parse_main_args()
     is_ps = args.pattern == 'PS'
     added_values = {} if args.pixel_step is None else {'pixel_step': args.pixel_step}
     chuncker, _ = chuncks.get_chuncker((args.step, args.step))
@@ -35,7 +35,8 @@ def main():
             )
         
         if is_ps:
-            light_dict, validity_mask = ps_estimation.estimate_ps(args.iterations, values, images, mask, raycaster, shapes, output, optimizer, scale, light_dict, delta=args.delta, chunck_number = args.ps_chunck_number)
+            return_ps_only = all(x in args.skip_export for x in {'images', 'lightmaps', 'light', 'misc'})
+            light_dict, validity_mask = ps_estimation.estimate_ps(args.iterations, values, images, mask, raycaster, shapes, output, optimizer, scale, light_dict, delta=args.delta, chunck_number = args.ps_chunck_number, return_ps_only=return_ps_only)
         else:
             light_dict, validity_mask = light_estimation.estimate_light(args.iterations, args.pattern, values, images, mask, raycaster, shapes, output, optimizer, scale, light_dict, delta=args.delta)
 

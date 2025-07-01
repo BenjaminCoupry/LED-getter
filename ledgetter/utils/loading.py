@@ -18,6 +18,7 @@ import ledgetter.utils.functions as functions
 import ledgetter.models.models as models
 import ledgetter.utils.vector_tools as vector_tools
 import ledgetter.image.grids as grids
+import ledgetter.utils.chuncks as chuncks
 
 
 def get_pixelmap(size):
@@ -282,4 +283,29 @@ def load_light_dict(path, do_load_light_values = True, do_load_light=None, do_lo
     losses = load_losses(losses_path) if path and do_load_losses and losses_path is not None and os.path.isfile(losses_path) else []
     light_dict = {'model': model, 'light_values': light_values, 'light': light, 'losses': losses}
     return light_dict
+
+def load_chuncked_values(paths):
+    step = int(jax.numpy.sqrt(len(paths)))
+    chuncker, _ = chuncks.get_chuncker((step, step))
+    value_dicts, masks, atomic_values = [], [], None
+    for i, path in enumerate(paths):
+        with numpy.load(path) as values_archive:
+            value_dict = {k : jax.numpy.asarray(values_archive[k]) for k in values_archive if models.is_pixelwise(k)}
+            mask = jax.numpy.asarray(values_archive['mask'])
+            value_dicts.append(value_dict)
+            masks.append(mask)
+            if i == len(paths)-1:
+                atomic_values = {k : jax.numpy.asarray(values_archive[k]) for k in values_archive if (k not in {'mask'} and not models.is_pixelwise(k))}
+                ref = value_dict
+    full_shape = (sum(mask.shape[0] for mask in masks[::step]), sum(mask.shape[1] for mask in masks[:step]))
+    ref_shapes = {k : jax.ShapeDtypeStruct(full_shape + jax.numpy.shape(ref[k])[1:], jax.numpy.dtype(ref[k])) for k in ref}
+    full_values = {k : jax.numpy.empty(ref_shapes[k].shape, ref_shapes[k].dtype) for k in ref}
+    full_mask = jax.numpy.zeros(full_shape, dtype=bool)
+    for value_dict, mask, chunck in zip(value_dicts, masks, chuncker):
+        full_values = {k : full_values[k].at[chunck].set(vector_tools.build_masked(mask, value_dict[k])) for k in ref}
+        full_mask = full_mask.at[chunck].set(mask)
+    values = atomic_values | {k : full_values[k][full_mask] for k in ref}
+    return values, full_mask
+    
+
 

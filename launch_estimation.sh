@@ -14,7 +14,7 @@ echo "Using config file: $CONFIG_FILE"
 for PATTERN in "${PATTERN_LIST[@]}"; do
     echo "=== Processing pattern: $PATTERN ==="
 
-    CMD="python main.py"
+    CMD="python estimate.py"
 
     # Required
     CMD+=" --ps_images_paths $PS_IMAGES_PATHS"
@@ -65,6 +65,7 @@ for PATTERN in "${PATTERN_LIST[@]}"; do
     chmod +x "$PS_SCRIPT_PATH"    
 
     if [[ " ${SOLVE_PS[@]} " =~ " ${PATTERN} " ]]; then
+        TO_MERGE=""
         TOTAL_SLICES=$((PS_STEP * PS_STEP - 1))
         for (( SLICE_I=0; SLICE_I<=TOTAL_SLICES; SLICE_I++ )); do
             CMD_PS="$CMD"
@@ -78,11 +79,21 @@ for PATTERN in "${PATTERN_LIST[@]}"; do
             CMD_PS+=" --backend cpu"
             CMD_PS+=" --skip_export images lightmaps light misc"
 
+            TO_MERGE+=" \"$PS_OUT_PATH/values/values.npz\""
+
             echo "$CMD_PS" >> "$PS_SCRIPT_PATH"
             echo "" >> "$PS_SCRIPT_PATH"
             echo "Running PS (slice $SLICE_I/$TOTAL_SLICES): $CMD_PS"
             eval $CMD_PS
         done
+
+        CMD_MERGE="python estimate.py --backend cpu --out_path \"$PSS_OUT_PATH/merged\" --paths $TO_MERGE"
+
+        echo "$CMD_MERGE" >> "$PS_SCRIPT_PATH"
+        echo "" >> "$PS_SCRIPT_PATH"
+        echo "Merging PS results: $CMD_MERGE"
+        eval $CMD_MERGE
+
     fi
 
 done
