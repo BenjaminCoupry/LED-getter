@@ -4,7 +4,7 @@ import os
 import ledgetter.utils.files as files
 
 
-def format_intrinsic(intrinsic):
+def format_meshroom_intrinsic(meshroom_intrinsic):
     """Formats camera intrinsic parameters into a matrix.
 
     Args:
@@ -17,28 +17,28 @@ def format_intrinsic(intrinsic):
             - int: Image height.
             - Array N,: Distortion parameters.
     """
-    width = float(intrinsic['width'])
-    height = float(intrinsic['height'])
+    width = float(meshroom_intrinsic['width'])
+    height = float(meshroom_intrinsic['height'])
 
     # Get focal length
-    sensor_width = float(intrinsic['sensorWidth'])
-    sensor_height = float(intrinsic['sensorHeight'])
-    focal_length = float(intrinsic['focalLength'])
+    sensor_width = float(meshroom_intrinsic['sensorWidth'])
+    sensor_height = float(meshroom_intrinsic['sensorHeight'])
+    focal_length = float(meshroom_intrinsic['focalLength'])
     fx = focal_length * width / sensor_width
     fy = focal_length * height / sensor_height
 
     # Get principal point
-    cx = width / 2 + float(intrinsic['principalPoint'][0])
-    cy = height / 2 + float(intrinsic['principalPoint'][1])
+    cx = width / 2 + float(meshroom_intrinsic['principalPoint'][0])
+    cy = height / 2 + float(meshroom_intrinsic['principalPoint'][1])
 
     # Get intrinsics matrix
     K = numpy.array([[fx, 0, cx], [0, fy, cy], [0, 0, 1]], dtype=numpy.float32)
 
-    distorsion = numpy.array(intrinsic['distortionParams'], dtype=numpy.float32)
+    distorsion = numpy.array(meshroom_intrinsic['distortionParams'], dtype=numpy.float32)
 
     return K, int(width), int(height), distorsion
 
-def format_pose(pose):
+def format_meshroom_extrinsic(meshroom_extrinsic):
     """Extracts the rotation matrix and translation vector from a pose dictionary.
 
     Args:
@@ -50,8 +50,8 @@ def format_pose(pose):
             - Array 3,: Translation vector.
     """
     # Get rotation matrix and center in OpenGL convention
-    R = numpy.array(pose['pose']['transform']['rotation'], dtype=numpy.float32).reshape([3,3])
-    t = numpy.array(pose['pose']['transform']['center'], dtype=numpy.float32)
+    R = numpy.array(meshroom_extrinsic['pose']['transform']['rotation'], dtype=numpy.float32).reshape([3,3])
+    t = numpy.array(meshroom_extrinsic['pose']['transform']['center'], dtype=numpy.float32)
     return R, t
 
 def unpack_sfm(sfm):
@@ -67,11 +67,11 @@ def unpack_sfm(sfm):
             - dict: Mapping of intrinsic IDs to intrinsic data.
             - dict: Mapping of image file paths to view IDs.
     """
-    poses = {pose['poseId'] : pose for pose in sfm['poses']}
+    extrinsics = {pose['poseId'] : pose for pose in sfm['poses']}
     views = {view['viewId'] : view for view in sfm['views']}
     intrinsics = {intrinsic['intrinsicId'] : intrinsic for intrinsic in sfm['intrinsics']}
     names_ids = {view['path'] : view['viewId'] for view in sfm['views']}
-    return poses, views, intrinsics, names_ids
+    return extrinsics, views, intrinsics, names_ids
 
 def get_sfm_path(project_path):
     """Finds the path to the cameras.sfm file in a Meshroom project.
@@ -113,12 +113,12 @@ def get_pose(sfm, view_id):
             - 'height' (int): Image height.
             - 'distorsion' (Array N,): Distortion parameters.
     """
-    poses, views, intrinsics, _ = unpack_sfm(sfm)
+    extrinsics, views, intrinsics, _ = unpack_sfm(sfm)
     view = views[view_id]
-    pose_id, instrinsic_id = view['poseId'], view['intrinsicId']
-    pose, intrinsic = poses[pose_id], intrinsics[instrinsic_id]
-    K, width, height, distorsion = format_intrinsic(intrinsic)
-    R, t = format_pose(pose)
+    extrinsic_id, instrinsic_id = view['poseId'], view['intrinsicId']
+    extrinsic, intrinsic = extrinsics[extrinsic_id], intrinsics[instrinsic_id]
+    K, width, height, distorsion = format_meshroom_intrinsic(intrinsic)
+    R, t = format_meshroom_extrinsic(extrinsic)
     pose_dict = {'K':K, 'R':R, 't':t, 'width':width, 'height':height, 'distorsion' : distorsion}
     return pose_dict
 
