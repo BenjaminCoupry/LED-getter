@@ -70,8 +70,8 @@ def unpack_sfm(sfm):
     extrinsics = {pose['poseId'] : pose for pose in sfm['poses']}
     views = {view['viewId'] : view for view in sfm['views']}
     intrinsics = {intrinsic['intrinsicId'] : intrinsic for intrinsic in sfm['intrinsics']}
-    names_ids = {view['path'] : view['viewId'] for view in sfm['views']}
-    return extrinsics, views, intrinsics, names_ids
+    paths_ids = {view['path'] : view['viewId'] for view in sfm['views']}
+    return extrinsics, views, intrinsics, paths_ids
 
 def get_sfm_path(project_path):
     """Finds the path to the cameras.sfm file in a Meshroom project.
@@ -132,8 +132,8 @@ def get_view_id(sfm, image_path):
     Returns:
         int: View ID corresponding to one of the image paths.
     """
-    _, _, _, names_ids = unpack_sfm(sfm)
-    file_matches = files.find_similar_path(list(names_ids.keys()), image_path)[0]
+    _, _, _, paths_ids = unpack_sfm(sfm)
+    file_matches = files.find_similar_path(list(paths_ids.keys()), image_path)[0]
     valid_path = file_matches[0][0] if len(file_matches)==1 else None
-    view_id = names_ids[valid_path]
+    view_id = paths_ids[valid_path]
     return view_id
