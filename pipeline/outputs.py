@@ -1,13 +1,10 @@
 import jax
 import numpy
 import ledgetter.models.models as models
-import ledgetter.rendering.renderers as renderers
-import matplotlib.pyplot as plt
 import imageio.v3 as iio
 import ledgetter.utils.vector_tools as vector_tools
 import ledgetter.utils.plots as plots
 import os
-import pathlib
 import json
 import ledgetter.utils.functions as functions
 import ledgetter.utils.light_serialization as light_serialization

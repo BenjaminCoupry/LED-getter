@@ -82,7 +82,7 @@ def get_sfm_path(project_path):
     Returns:
         str: Path to the cameras.sfm file.
     """
-    sfm_path = glob.glob(os.path.join(project_path,'MeshroomCache','StructureFromMotion','*','cameras.sfm'))[0]
+    sfm_path = max(glob.glob(os.path.join(project_path,'MeshroomCache','StructureFromMotion','*','cameras.sfm')), key=os.path.getmtime)
     return sfm_path
 
 def get_mesh_path(project_path):
@@ -94,7 +94,7 @@ def get_mesh_path(project_path):
     Returns:
         str: Path to the mesh.obj file.
     """
-    mesh_path = glob.glob(os.path.join(project_path,'MeshroomCache','MeshFiltering','*','mesh.obj'))[0]
+    mesh_path = max(glob.glob(os.path.join(project_path,'MeshroomCache','MeshFiltering','*','mesh.obj')), key=os.path.getmtime)
     return mesh_path
 
 def get_pose(sfm, view_id):
