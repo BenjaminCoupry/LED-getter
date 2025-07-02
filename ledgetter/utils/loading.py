@@ -187,7 +187,7 @@ def load_pose(path, aligned_image_path=None):
     if pathlib.Path(path).suffix.lower() in {'.json'}: #given pose.json
         with open(path, 'r') as f:
             pose = json.load(f)
-    elif os.path.isdir(path) : #given meshroom project
+    elif os.path.isdir(path) and aligned_image_path is not None: #given meshroom project
         sfm_path = meshroom.get_sfm_path(path)
         with open(sfm_path, 'r') as f:
             sfm = json.load(f)
