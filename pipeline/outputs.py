@@ -53,7 +53,7 @@ def export_values(path, light_dict, mask, validity_mask):
     os.makedirs(os.path.join(path, 'images'), exist_ok=True)
     if 'normals' in light_values :
         normalmap = vector_tools.build_masked(mask, light_values['normals'])
-        iio.imwrite(os.path.join(path, 'images', 'geometry_normals.png'),numpy.uint8(0.5*(normalmap*numpy.asarray([1,-1,-1])+1)*255))
+        iio.imwrite(os.path.join(path, 'images', 'geometry_normals.png'), vector_tools.r3_to_rgb(normalmap*numpy.asarray([1,-1,-1])))
     if 'points' in light_values:
         zscale = 1- ((light_values['points'][:,-1] - numpy.min(light_values['points'][:,-1])) / (numpy.max(light_values['points'][:,-1]) - numpy.min(light_values['points'][:,-1])))
         zmap = vector_tools.build_masked(mask, zscale)

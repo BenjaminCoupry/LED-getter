@@ -138,23 +138,30 @@ def load_geometry(path, pixels, pose=None):
     tuple: A tuple containing a mask, normal vectors, and 3D points.
     """
     format = pathlib.Path(path).suffix.lower()
-    if format in {'.npz'}: #given .npz geometry
-        with numpy.load(path) as loaded:
-            mask_loaded = loaded['mask']
-            if 'normalmap' in loaded:
-                normalmap_loaded = loaded['normalmap'].astype(numpy.float32)
-            elif 'normals' in loaded:
-                normals_loaded = loaded['normals'].astype(numpy.float32)
-                normalmap_loaded = normals_loaded if normals_loaded.ndim == 3 else vector_tools.build_masked(mask_loaded, normals_loaded)
-            else:
-                raise ValueError(f"No normals found in {path}")
-            if 'pointmap' in loaded:
-                pointmap_loaded = loaded['pointmap'].astype(numpy.float32)
-            elif 'points' in loaded:
-                points_loaded = loaded['points'].astype(numpy.float32)
-                pointmap_loaded = points_loaded if points_loaded.ndim == 3 else vector_tools.build_masked(mask_loaded, points_loaded)
-            else:
-                raise ValueError(f"No points found in {path}")
+    if format in {'.npz', '.png'}: #given .npz geometry
+        if format in {'.npz'}:
+            with numpy.load(path) as loaded:
+                mask_loaded = loaded['mask']
+                if 'normalmap' in loaded:
+                    normalmap_loaded = loaded['normalmap'].astype(numpy.float32)
+                elif 'normals' in loaded:
+                    normals_loaded = loaded['normals'].astype(numpy.float32)
+                    normalmap_loaded = normals_loaded if normals_loaded.ndim == 3 else vector_tools.build_masked(mask_loaded, normals_loaded)
+                else:
+                    raise ValueError(f"No normals found in {path}")
+                if 'pointmap' in loaded:
+                    pointmap_loaded = loaded['pointmap'].astype(numpy.float32)
+                elif 'points' in loaded:
+                    points_loaded = loaded['points'].astype(numpy.float32)
+                    pointmap_loaded = points_loaded if points_loaded.ndim == 3 else vector_tools.build_masked(mask_loaded, points_loaded)
+                else:
+                    raise ValueError(f"No points found in {path}")
+        elif format in {'.png'}:
+            normalmap_image = iio.imread(path)
+            normalmap_loaded = vector_tools.rgb_to_r3(normalmap_image)*jax.numpy.asarray([1,-1,-1])
+            normals_norm = vector_tools.norm_vector(normalmap_loaded)[0]
+            mask_loaded = jax.numpy.logical_and(normals_norm>0.95, normals_norm<1.05)
+            pointmap_loaded = jax.numpy.full(normalmap_loaded.shape, jax.numpy.nan, dtype=jax.numpy.float32)
         normalmap_grid, mask_grid, points_grid = grids.get_grid_from_array(jax.numpy.swapaxes(normalmap_loaded, 0, 1)), grids.get_grid_from_array(jax.numpy.swapaxes(mask_loaded, 0, 1)), grids.get_grid_from_array(jax.numpy.swapaxes(pointmap_loaded, 0, 1))
         geometry = lambda pixels : ((lambda mask, normalmap, points : (jax.numpy.logical_and(mask[0], mask[1]), normalmap[0], points[0]))(mask_grid(pixels), normalmap_grid(pixels), points_grid(pixels)))
         raycaster = None #TODO : raycaster from depthmap
