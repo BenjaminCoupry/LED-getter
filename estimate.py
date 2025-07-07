@@ -31,7 +31,9 @@ def main():
                 load_light_function=is_ps,
                 learning_rate=args.learning_rate,
                 tqdm_refresh=args.tqdm_refresh,
-                added_values=added_values
+                added_values=added_values,
+                flip_lp=args.flip_lp,
+                flip_mesh= (not args.not_flip_mesh) 
             )
         
         if is_ps:

@@ -107,4 +107,13 @@ def parse_main_args():
         help="Size of pixel step for grid light estimation."
     )
 
+    parser.add_argument(
+        '--flip_lp', action='store_true', help='Flip coordinates (y,z) when loading light from a .lp'
+        )
+    
+    parser.add_argument(
+        '--not_flip_mesh', action='store_true', help='Do not flip coordinates (y,z) when loading a 3D mesh'
+        )
+
+
     return parser.parse_args()

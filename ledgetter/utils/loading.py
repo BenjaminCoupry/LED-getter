@@ -112,7 +112,7 @@ def load_images(paths, pixels, pose=None, kernel_span=3, batch_size=100):
         stored = stored.at[..., i].set(extracted)
     return stored, mask, (n_pix, n_im, n_c)
 
-def load_mesh(path, transform):
+def load_mesh(path, transform, flip_mesh=True):
     """
     Loads a 3D mesh from a given file path.
 
@@ -122,10 +122,11 @@ def load_mesh(path, transform):
     Returns:
     open3d.t.geometry.TriangleMesh: The loaded and transformed 3D mesh.
     """
-    mesh = open3d.t.io.read_triangle_mesh(path).transform(numpy.diag([1,-1,-1,1])).transform(numpy.asarray(transform))
+    flip = [1, -1, -1, 1] if flip_mesh else [1, 1, 1, 1]
+    mesh = open3d.t.io.read_triangle_mesh(path).transform(numpy.diag(flip)).transform(numpy.asarray(transform))
     return mesh
 
-def load_geometry(path, pixels, pose=None):
+def load_geometry(path, pixels, pose=None, flip_mesh=True):
     """
     Loads 3D geometry data from a file or extracts it from a mesh.
 
@@ -170,7 +171,7 @@ def load_geometry(path, pixels, pose=None):
         mesh_path = meshroom.get_mesh_path(path) if os.path.isdir(path) else path #direct path or path to a meshroom project
         K, R, t = jax.numpy.asarray(pose['K']), jax.numpy.asarray(pose['R']), jax.numpy.asarray(pose['t'])
         transform = camera.get_rototranslation_matrix(R, t, to_camera=True)
-        mesh = load_mesh(mesh_path, transform)
+        mesh = load_mesh(mesh_path, transform, flip_mesh=flip_mesh)
         raycaster = raycasting.get_mesh_raycaster(mesh)
         geometry = camera.get_geometry(raycaster, K)
         backend = None
@@ -206,14 +207,14 @@ def load_pose(path, aligned_image_path=None):
 
 
             
-def load_light(path, model=None, light_names=None):
+def load_light(path, model=None, light_names=None, flip_lp=False):
     format = pathlib.Path(path).suffix.lower()
     if format in {'.jax'}:
         with open(path, "rb") as f:
             serialized = f.read()
         light = light_serialization.deserialize_light(serialized)
     elif format in {'.npz', '.lp'} and model is not None:
-        light_values = load_light_values(path, light_names=light_names)
+        light_values = load_light_values(path, light_names=light_names, flip_lp=flip_lp)
         light_raw = models.get_light(model['light'])
         light = functions.filter_args(jax.jit(lambda points, pixels : light_raw(**(light_values | {'points':points, 'pixels':pixels}))))
     else:
@@ -247,7 +248,7 @@ def load_model(path):
         raise ValueError(f"Unknown model format: {format}")
     return model
 
-def load_light_values(path, light_names=None):
+def load_light_values(path, light_names=None, flip_lp=False):
     format = pathlib.Path(path).suffix.lower()
     if format in {'.npz'}:
         with numpy.load(path) as light_archive:
@@ -256,7 +257,7 @@ def load_light_values(path, light_names=None):
         names_dir = numpy.loadtxt(path,skiprows=1,dtype=str,usecols=0)
         unsorted_dir = numpy.loadtxt(path,skiprows=1,dtype=float,usecols=(1,2,3))
         order_dir = numpy.asarray([numpy.argwhere(names_dir==n)[0,0] for n in light_names])
-        light_directions_raw = unsorted_dir[order_dir,:]
+        light_directions_raw = unsorted_dir[order_dir,:] * jax.numpy.asarray([1, 1, 1] if not flip_lp else [1, -1, -1])
         light_intensity_path = pathlib.Path(path).with_name("light_intensity.lp")
         if os.path.isfile(light_intensity_path):
             names_int = numpy.loadtxt(light_intensity_path,skiprows=1,dtype=str,usecols=0)
@@ -273,7 +274,7 @@ def load_light_values(path, light_names=None):
     return light_values
 
 
-def load_light_dict(path, do_load_light_values = True, do_load_light=None, do_load_model=True, do_load_losses=True, light_names = None):
+def load_light_dict(path, do_load_light_values = True, do_load_light=None, do_load_model=True, do_load_losses=True, light_names = None, flip_lp=False):
     if path is None:
         model_path, light_values_path, losses_path, light_path, lp_path = None, None, None, None, None
     elif os.path.isdir(path):
@@ -284,9 +285,9 @@ def load_light_dict(path, do_load_light_values = True, do_load_light=None, do_lo
         model_path, light_values_path, losses_path, light_path, lp_path = path, path, None, path, path
     else:
         raise ValueError(f"Unknown light format: {path} with {'known' if light_names is not None else 'unknown'} light names")
-    light_values = load_light_values(files.first_existing_file([light_values_path, lp_path]), light_names=light_names) if path and do_load_light_values and (os.path.isfile(light_values_path) or os.path.isfile(lp_path)) else {}
+    light_values = load_light_values(files.first_existing_file([light_values_path, lp_path]), light_names=light_names, flip_lp=flip_lp) if path and do_load_light_values and (os.path.isfile(light_values_path) or os.path.isfile(lp_path)) else {}
     model = load_model(files.first_existing_file([model_path, light_values_path, lp_path])) if path and do_load_model and (os.path.isfile(model_path) or os.path.isfile(light_values_path) or os.path.isfile(lp_path)) else None
-    light = load_light(files.first_existing_file([light_path, light_values_path, lp_path]), model=model, light_names=light_names) if path and do_load_light and (os.path.isfile(light_path) or os.path.isfile(light_values_path)or os.path.isfile(lp_path)) else None
+    light = load_light(files.first_existing_file([light_path, light_values_path, lp_path]), model=model, light_names=light_names, flip_lp=flip_lp) if path and do_load_light and (os.path.isfile(light_path) or os.path.isfile(light_values_path)or os.path.isfile(lp_path)) else None
     losses = load_losses(losses_path) if path and do_load_losses and losses_path is not None and os.path.isfile(losses_path) else []
     light_dict = {'model': model, 'light_values': light_values, 'light': light, 'losses': losses}
     return light_dict
