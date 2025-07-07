@@ -281,7 +281,7 @@ def load_light_dict(path, do_load_light_values = True, do_load_light=None, do_lo
             os.path.join(path or '', 'model.json'), os.path.join(path or '', 'values', 'values.npz'),\
             os.path.join(path or '', 'losses','losses.npz'), os.path.join(path or '', 'light','light_function.jax'), os.path.join(path or '', 'light','light_direction.lp')
     elif pathlib.Path(path).suffix.lower() in {'.lp'} and light_names is not None:
-        model_path, light_values_path, losses_path, light_path, lp_path = path, path, path, path, path
+        model_path, light_values_path, losses_path, light_path, lp_path = path, path, None, path, path
     else:
         raise ValueError(f"Unknown light format: {path} with {'known' if light_names is not None else 'unknown'} light names")
     light_values = load_light_values(files.first_existing_file([light_values_path, lp_path]), light_names=light_names) if path and do_load_light_values and (os.path.isfile(light_values_path) or os.path.isfile(lp_path)) else {}
