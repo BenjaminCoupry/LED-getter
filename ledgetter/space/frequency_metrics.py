@@ -27,9 +27,10 @@ def estimate_rotation(test_normals, reference_normals, points, mask, sigma, span
     return R
 
 def frequency_angular_errors(test_normals, reference_normals, points, mask, sigma, span, batch_size=None):
-    filtered_test_normals = vector_tools.norm_vector(filters.apply_spatial_gaussian_filter(test_normals, points, mask, span, sigma, batch_size=batch_size))[1]
-    filtered_reference_normals =  vector_tools.norm_vector(filters.apply_spatial_gaussian_filter(reference_normals, points, mask, span, sigma, batch_size=batch_size))[1]
-    R = estimate_rotation(filtered_test_normals, filtered_reference_normals, points, mask, sigma, span, batch_size=batch_size)
+    scaled_sigma = sigma*jax.numpy.quantile(jax.numpy.linalg.norm(points - jax.numpy.mean(points, axis=0),axis=-1), 0.95)
+    filtered_test_normals = vector_tools.norm_vector(filters.apply_spatial_gaussian_filter(test_normals, points, mask, span, scaled_sigma, batch_size=batch_size))[1]
+    filtered_reference_normals =  vector_tools.norm_vector(filters.apply_spatial_gaussian_filter(reference_normals, points, mask, span, scaled_sigma, batch_size=batch_size))[1]
+    R = estimate_rotation(filtered_test_normals, filtered_reference_normals, points, mask, scaled_sigma, span, batch_size=batch_size)
     rotated_test_normal = jax.numpy.einsum('...ik, ...k -> ...i', R, test_normals)
     hf_error = angular_error(rotated_test_normal, reference_normals)
     lf_error = angular_error(filtered_test_normals, filtered_reference_normals)
