@@ -13,7 +13,7 @@ def preprocess(ps_images_paths, sliced=slice(None), meshroom_project=None, align
     light_names = list(map(lambda p : pathlib.Path(p).stem, ps_images_paths))
     pose = loading.load_pose(pose_path if pose_path else meshroom_project, aligned_image_path if aligned_image_path else ps_images_paths) if pose_path or meshroom_project else None
     pixelmap = loading.get_pixelmap(pose if pose else ps_images_paths[0])[sliced]
-    geometric_mask, normalmap, pointmap, raycaster  = loading.load_geometry(geometry_path if geometry_path else meshroom_project, pixelmap, pose, flip_mesh=flip_mesh)
+    geometric_mask, normalmap, pointmap, raycaster  = loading.load_geometry(geometry_path if geometry_path else meshroom_project, pixelmap, pose, flip_mesh=flip_mesh, batch_size = 1000)
     geom_images, undisto_mask, (_, n_im, n_c) = loading.load_images((ps_images_paths + [black_image_path]) if black_image_path else ps_images_paths, pixelmap[geometric_mask], pose, batch_size = 1000)
     geom_images, n_im = (jax.numpy.maximum(0, geom_images[...,:-1] - geom_images[...,-1:]), n_im-1) if black_image_path else (geom_images, n_im)
     geom_points, geom_normals, geom_pixels = pointmap[geometric_mask], normalmap[geometric_mask], pixelmap[geometric_mask], 
