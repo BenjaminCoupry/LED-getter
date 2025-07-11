@@ -66,7 +66,7 @@ def load_image(path):
         raise ValueError(f"Unknown image format: {format}")
     return image
 
-def extract_pixels(image, pixels, pose=None, kernel_span=5, batch_size=100):
+def extract_pixels(image, pixels, pose=None, kernel_span=5, batch_size=100, mask=None):
     """
     Extracts pixel values from an image, with optional undistortion.
 
@@ -82,9 +82,9 @@ def extract_pixels(image, pixels, pose=None, kernel_span=5, batch_size=100):
     """
     if pose : #given undistorsion
         K, distorsion = jax.numpy.asarray(pose['K']), jax.numpy.asarray(pose['distorsion'])
-        grid = undistort.get_undistorted_image(K, distorsion, jax.numpy.asarray(image), kernel_span)
+        grid = undistort.get_undistorted_image(K, distorsion, jax.numpy.asarray(image), kernel_span, mask=mask)
     else: #without undistorsion
-        grid = grids.get_grid_from_array(jax.numpy.swapaxes(image, 0, 1))
+        grid = grids.get_grid_from_array(jax.numpy.swapaxes(image, 0, 1), valid_mask = (jax.numpy.swapaxes(mask, 0, 1) if mask is not None else None))
     with jax.default_device(jax.devices("gpu")[0]):
         undisto_image, mask = jax.device_put(jax.lax.map(grid, pixels, batch_size=batch_size), pixels.device)
     return undisto_image, mask
@@ -126,6 +126,69 @@ def load_mesh(path, transform, flip_mesh=True):
     mesh = open3d.t.io.read_triangle_mesh(path).transform(numpy.diag(flip)).transform(numpy.asarray(transform))
     return mesh
 
+def load_mesh_geometry(path, pixels, pose, flip_mesh=True, batch_size=100):
+    format = pathlib.Path(path).suffix.lower()
+    if format in {'.obj', '.ply'}:
+        K, R, t = jax.numpy.asarray(pose['K']), jax.numpy.asarray(pose['R']), jax.numpy.asarray(pose['t'])
+        transform = camera.get_rototranslation_matrix(R, t, to_camera=True)
+        mesh = load_mesh(path, transform, flip_mesh=flip_mesh)
+        raycaster = raycasting.get_mesh_raycaster(mesh)
+        geometry = camera.get_geometry(raycaster, K)
+        with jax.default_device(jax.devices("cpu")[0]):
+            mask, normals, points = jax.device_put(jax.lax.map(geometry, pixels, batch_size=batch_size), pixels.device)
+    else:
+        raise ValueError(f"Unknown mesh format: {format}")
+    return mask, normals, points, raycaster
+
+def load_npz_geometry(path, pixels, pose=None, batch_size=100):
+    format = pathlib.Path(path).suffix.lower()
+    if format in {'.npz'}:
+        with numpy.load(path) as loaded:
+            normals_key = 'normals' if 'normals' in loaded else ('normalmap' if 'normalmap' in loaded else None)
+            points_key = 'points' if 'points' in loaded else ('pointmap' if 'pointmap' in loaded else None)
+            mask_loaded = jax.numpy.asarray(loaded['mask'], dtype=jax.numpy.bool)
+            if points_key is not None:
+                points_loaded = jax.numpy.asarray(loaded[points_key], dtype=jax.numpy.float32)
+                pointmap_loaded = points_loaded if points_loaded.ndim == 3 else vector_tools.build_masked(mask_loaded, points_loaded)
+            else:
+                pointmap_loaded = jax.numpy.full(mask_loaded.shape + (3,), jax.numpy.nan, dtype=jax.numpy.float32)
+            if normals_key is not None:
+                normals_loaded = jax.numpy.asarray(loaded[normals_key], dtype=jax.numpy.float32)
+                normalmap_loaded = normals_loaded if normals_loaded.ndim == 3 else vector_tools.build_masked(mask_loaded, normals_loaded)
+            else:
+                normalmap_loaded = jax.numpy.full(mask_loaded.shape + (3,), jax.numpy.nan, dtype=jax.numpy.float32)
+        raycaster=None
+        points, mask_points = extract_pixels(pointmap_loaded, pixels, pose=pose, kernel_span=5, batch_size=batch_size, mask=mask_loaded)
+        normals_unorm, mask_normals = extract_pixels(normalmap_loaded, pixels, pose=pose, kernel_span=5, batch_size=batch_size, mask=mask_loaded)
+        normals = vector_tools.norm_vector(normals_unorm)[1]
+        mask = jax.numpy.logical_and(mask_points, mask_normals)
+    else:
+        raise ValueError(f"Unknown geometry format: {format}")
+    return mask, normals, points, raycaster
+
+def load_image_geometry(path, pixels, pose=None, batch_size=100):
+    format = pathlib.Path(path).suffix.lower()
+    if format in {'.png'}:
+        normalmap_image = load_image(path)
+        normalmap_loaded = vector_tools.rgb_to_r3(normalmap_image*255.0)*jax.numpy.asarray([1,-1,-1])
+        normals_norm = vector_tools.norm_vector(normalmap_loaded)[0]
+        mask_normals = jax.numpy.logical_and(normals_norm>0.95, normals_norm<1.05)
+        mask_path = pathlib.Path(path).with_name("mask.png")
+        if os.path.isfile(mask_path):
+            mask_loaded_raw = jax.numpy.asarray(iio.imread(mask_path)) > 0
+            mask_loaded = mask_loaded_raw if jax.numpy.ndim(mask_loaded_raw) == 2 else jax.numpy.any(mask_loaded_raw, axis=-1)
+            mask_data = jax.numpy.logical_and(mask_normals, mask_loaded)
+        else:
+            mask_data = mask_normals
+        raycaster=None
+        normals_unorm, mask = extract_pixels(normalmap_loaded, pixels, pose=pose, kernel_span=5, batch_size=batch_size, mask=mask_data)
+        normals = vector_tools.norm_vector(normals_unorm)[1]
+        points = jax.numpy.full(normals.shape, jax.numpy.nan, dtype=jax.numpy.float32)
+    else:
+        raise ValueError(f"Unknown image format: {format}")
+    return mask, normals, points, raycaster
+
+
 def load_geometry(path, pixels, pose=None, flip_mesh=True, batch_size=100):
     """
     Loads 3D geometry data from a file or extracts it from a mesh.
@@ -142,42 +205,14 @@ def load_geometry(path, pixels, pose=None, flip_mesh=True, batch_size=100):
     format = pathlib.Path(path).suffix.lower()
     if format in {'.npz', '.png'}: #given .npz geometry
         if format in {'.npz'}:
-            with numpy.load(path) as loaded:
-                mask_loaded = jax.numpy.asarray(loaded['mask'], dtype=jax.numpy.bool)
-                if 'normalmap' in loaded:
-                    normalmap_loaded = jax.numpy.asarray(loaded['normalmap'], dtype=jax.numpy.float32)
-                elif 'normals' in loaded:
-                    normals_loaded = jax.numpy.asarray(loaded['normals'], dtype=jax.numpy.float32)
-                    normalmap_loaded = normals_loaded if normals_loaded.ndim == 3 else vector_tools.build_masked(mask_loaded, normals_loaded)
-                else:
-                    normalmap_loaded = jax.numpy.full(mask_loaded.shape + (3,), jax.numpy.nan, dtype=jax.numpy.float32)
-                if 'pointmap' in loaded:
-                    pointmap_loaded = jax.numpy.asarray(loaded['pointmap'], dtype=jax.numpy.float32)
-                elif 'points' in loaded:
-                    points_loaded = jax.numpy.asarray(loaded['points'], dtype=jax.numpy.float32)
-                    pointmap_loaded = points_loaded if points_loaded.ndim == 3 else vector_tools.build_masked(mask_loaded, points_loaded)
-                else:
-                    pointmap_loaded = jax.numpy.full(mask_loaded.shape + (3,), jax.numpy.nan, dtype=jax.numpy.float32)
+            mask, normals, points, raycaster = load_npz_geometry(path, pixels, pose=pose, batch_size=batch_size)
         elif format in {'.png'}:
-            normalmap_image = iio.imread(path)
-            normalmap_loaded = vector_tools.rgb_to_r3(normalmap_image)*jax.numpy.asarray([1,-1,-1])
-            normals_norm = vector_tools.norm_vector(normalmap_loaded)[0]
-            mask_loaded = jax.numpy.logical_and(normals_norm>0.95, normals_norm<1.05)
-            pointmap_loaded = jax.numpy.full(normalmap_loaded.shape, jax.numpy.nan, dtype=jax.numpy.float32)
-        normalmap_grid, mask_grid, points_grid = grids.get_grid_from_array(jax.numpy.swapaxes(normalmap_loaded, 0, 1)), grids.get_grid_from_array(jax.numpy.swapaxes(mask_loaded, 0, 1)), grids.get_grid_from_array(jax.numpy.swapaxes(pointmap_loaded, 0, 1))
-        geometry = lambda pixels : ((lambda mask, normalmap, points : (jax.numpy.logical_and(mask[0], mask[1]), normalmap[0], points[0]))(mask_grid(pixels), normalmap_grid(pixels), points_grid(pixels)))
-        raycaster = None #TODO : raycaster from depthmap
+            mask, normals, points, raycaster = load_image_geometry(path, pixels, pose=pose, batch_size=batch_size)
     elif format in {'.obj', '.ply'} or os.path.isdir(path):  #extracting geometry from a mesh
         mesh_path = meshroom.get_mesh_path(path) if os.path.isdir(path) else path #direct path or path to a meshroom project
-        K, R, t = jax.numpy.asarray(pose['K']), jax.numpy.asarray(pose['R']), jax.numpy.asarray(pose['t'])
-        transform = camera.get_rototranslation_matrix(R, t, to_camera=True)
-        mesh = load_mesh(mesh_path, transform, flip_mesh=flip_mesh)
-        raycaster = raycasting.get_mesh_raycaster(mesh)
-        geometry = camera.get_geometry(raycaster, K)
+        mask, normals, points, raycaster = load_mesh_geometry(mesh_path, pixels, pose, flip_mesh=flip_mesh, batch_size=batch_size)
     else:
         raise ValueError(f"Unknown geometry format: {format}")
-    with jax.default_device(jax.devices("gpu")[0]):
-        mask, normals, points = jax.device_put(jax.lax.map(geometry, pixels, batch_size=batch_size), pixels.device)
     return mask, normals, points, raycaster
 
 def load_pose(path, aligned_image_path=None):
@@ -248,12 +283,10 @@ def load_model(path):
         raise ValueError(f"Unknown model format: {format}")
     return model
 
-def load_light_values(path, light_names=None, flip_lp=False):
+
+def load_lp(path, light_names, flip_lp = False):
     format = pathlib.Path(path).suffix.lower()
-    if format in {'.npz'}:
-        with numpy.load(path) as light_archive:
-            light_values = {k: jax.numpy.asarray(v) for k, v in light_archive.items() if k not in {'mask', 'validity_mask'}}
-    elif format in {'.lp'} and light_names is not None:
+    if format in {'.lp'}:
         names_dir = numpy.loadtxt(path,skiprows=1,dtype=str,usecols=0)
         unsorted_dir = numpy.loadtxt(path,skiprows=1,dtype=float,usecols=(1,2,3))
         order_dir = numpy.asarray([numpy.argwhere(names_dir==n)[0,0] for n in light_names])
@@ -268,6 +301,18 @@ def load_light_values(path, light_names=None, flip_lp=False):
             dir_light_power = None
         light_directions_norm, light_directions = vector_tools.norm_vector(light_directions_raw)
         dir_light_power = dir_light_power if dir_light_power is not None else light_directions_norm
+    else:
+        raise ValueError(f"Unknown lp format: {format}")
+    return light_directions, dir_light_power
+
+
+def load_light_values(path, light_names=None, flip_lp=False):
+    format = pathlib.Path(path).suffix.lower()
+    if format in {'.npz'}:
+        with numpy.load(path) as light_archive:
+            light_values = {k: jax.numpy.asarray(v) for k, v in light_archive.items() if k not in {'mask', 'validity_mask'}}
+    elif format in {'.lp'} and light_names is not None:
+        light_directions, dir_light_power = load_lp(path, light_names, flip_lp = flip_lp)
         light_values = {'light_directions': light_directions, 'dir_light_power': dir_light_power}
     else:
         raise ValueError(f"Unknown light values format: {format} with {'known' if light_names is not None else 'unknown'} light names")
