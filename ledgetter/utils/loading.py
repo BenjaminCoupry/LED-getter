@@ -82,11 +82,11 @@ def extract_pixels(image, pixels, pose=None, kernel_span=5, batch_size=100, mask
     """
     if pose : #given undistorsion
         K, distorsion = jax.numpy.asarray(pose['K']), jax.numpy.asarray(pose['distorsion'])
-        grid = undistort.get_undistorted_image(K, distorsion, jax.numpy.asarray(image), kernel_span, mask=mask)
+        extractor = jax.jit(lambda image, pixels : undistort.get_undistorted_image(K, distorsion, image, kernel_span, mask=mask)(pixels), backend='gpu')
+        undisto_image, mask = jax.device_put(jax.lax.map(lambda pixels : extractor(image, pixels), pixels, batch_size=batch_size), pixels.device)
     else: #without undistorsion
         grid = grids.get_grid_from_array(jax.numpy.swapaxes(image, 0, 1), valid_mask = (jax.numpy.swapaxes(mask, 0, 1) if mask is not None else None))
-    with jax.default_device(jax.devices("gpu")[0]):
-        undisto_image, mask = jax.device_put(jax.lax.map(grid, pixels, batch_size=batch_size), pixels.device)
+        undisto_image, mask = grid(pixels)
     return undisto_image, mask
 
 def load_images(paths, pixels, pose=None, kernel_span=3, batch_size=100):
@@ -126,16 +126,15 @@ def load_mesh(path, transform, flip_mesh=True):
     mesh = open3d.t.io.read_triangle_mesh(path).transform(numpy.diag(flip)).transform(numpy.asarray(transform))
     return mesh
 
-def load_mesh_geometry(path, pixels, pose, flip_mesh=True, batch_size=100):
+def load_mesh_geometry(path, pixels, pose, flip_mesh=True):
     format = pathlib.Path(path).suffix.lower()
     if format in {'.obj', '.ply'}:
         K, R, t = jax.numpy.asarray(pose['K']), jax.numpy.asarray(pose['R']), jax.numpy.asarray(pose['t'])
         transform = camera.get_rototranslation_matrix(R, t, to_camera=True)
         mesh = load_mesh(path, transform, flip_mesh=flip_mesh)
         raycaster = raycasting.get_mesh_raycaster(mesh)
-        geometry = camera.get_geometry(raycaster, K)
-        with jax.default_device(jax.devices("cpu")[0]):
-            mask, normals, points = jax.device_put(jax.lax.map(geometry, pixels, batch_size=batch_size), pixels.device)
+        geometry = jax.jit(camera.get_geometry(raycaster, K), backend='cpu')
+        mask, normals, points = jax.device_put(geometry(pixels), device=pixels.device)
     else:
         raise ValueError(f"Unknown mesh format: {format}")
     return mask, normals, points, raycaster
@@ -210,7 +209,7 @@ def load_geometry(path, pixels, pose=None, flip_mesh=True, batch_size=100):
             mask, normals, points, raycaster = load_image_geometry(path, pixels, pose=pose, batch_size=batch_size)
     elif format in {'.obj', '.ply'} or os.path.isdir(path):  #extracting geometry from a mesh
         mesh_path = meshroom.get_mesh_path(path) if os.path.isdir(path) else path #direct path or path to a meshroom project
-        mask, normals, points, raycaster = load_mesh_geometry(mesh_path, pixels, pose, flip_mesh=flip_mesh, batch_size=batch_size)
+        mask, normals, points, raycaster = load_mesh_geometry(mesh_path, pixels, pose, flip_mesh=flip_mesh)
     else:
         raise ValueError(f"Unknown geometry format: {format}")
     return mask, normals, points, raycaster
