@@ -63,9 +63,10 @@ def get_spatial_gaussian_filter(grid, grid_points, span, sigma):
     filtered = get_local_filter(grid, proximal_grid, span, normalise=True, filter_valid=True)
     return filtered
 
-def apply_spatial_gaussian_filter(values, points, mask, span, sigma, batch_size = None):
+def apply_spatial_gaussian_filter(values, points, mask, span, sigma, batch_size = None, where=None):
+    where = jax.numpy.argwhere(mask) if where is None else where
     values_grid = grids.build_masked_grid(mask, values)
     points_grid = grids.build_masked_grid(mask, points)
     gaussian_grid = get_spatial_gaussian_filter(values_grid, points_grid, span, sigma)
-    filtered_values, _ = jax.lax.map(gaussian_grid, jax.numpy.argwhere(mask), batch_size=batch_size)
+    filtered_values, _ = jax.lax.map(gaussian_grid, where, batch_size=batch_size)
     return filtered_values
