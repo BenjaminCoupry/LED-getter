@@ -82,8 +82,7 @@ def extract_pixels(image, pixels, pose=None, kernel_span=5, batch_size=100, mask
     """
     if pose : #given undistorsion
         K, distorsion = jax.numpy.asarray(pose['K']), jax.numpy.asarray(pose['distorsion'])
-        extractor = jax.jit(lambda image, pixels : undistort.get_undistorted_image(K, distorsion, image, kernel_span, mask=mask)(pixels), backend='gpu')
-        undisto_image, mask = jax.device_put(jax.lax.map(lambda pixels : extractor(image, pixels), pixels, batch_size=batch_size), pixels.device)
+        undisto_image, mask = jax.device_put(jax.lax.map(lambda coordinates : undistort.undistorted_image(K, distorsion, image, coordinates, kernel_span, mask=mask), pixels, batch_size=batch_size), pixels.device)
     else: #without undistorsion
         grid = grids.get_grid_from_array(jax.numpy.swapaxes(image, 0, 1), valid_mask = (jax.numpy.swapaxes(mask, 0, 1) if mask is not None else None))
         undisto_image, mask = grid(pixels)

@@ -2,6 +2,7 @@ import jax
 import ledgetter.image.filters as filters
 import ledgetter.space.coord_systems as coord_systems
 import ledgetter.image.grids as grids
+import functools
 
 
 def get_scale(K, size):
@@ -43,7 +44,8 @@ def get_coordinates_transform(K, scale, distorsion):
         return transformed_coordinates
     return coordinates_transform
 
-def get_undistorted_image(K, distorsion, image, kernel_span, mask=None):
+@functools.partial(jax.jit, backend='gpu', static_argnames=('kernel_span',))
+def undistorted_image(K, distorsion, image, coordinates, kernel_span, mask=None):
     """Generates an undistorted version of an image.
 
     Args:
@@ -60,8 +62,6 @@ def get_undistorted_image(K, distorsion, image, kernel_span, mask=None):
     grid_function = grids.get_grid_from_array(jax.numpy.swapaxes(image, 0, 1), valid_mask = (jax.numpy.swapaxes(mask, 0, 1) if mask is not None else None))
     coordinates_transform = get_coordinates_transform(K, scale, distorsion)
     resampler = filters.get_lanczos_reampler(grid_function, kernel_span)
-    def undistorted_grid(coordinates):
-        transformed_coordinates = coordinates_transform(coordinates)
-        resampled, mask = resampler(transformed_coordinates)
-        return resampled, mask
-    return undistorted_grid
+    transformed_coordinates = coordinates_transform(coordinates)
+    resampled, mask = resampler(transformed_coordinates)
+    return resampled, mask
