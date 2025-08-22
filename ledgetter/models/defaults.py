@@ -39,6 +39,12 @@ def get_default(name, raycaster, scale):
             model = {'light':'harmonic', 'renderers':['lambertian', 'phong'], 'parameters':parameters, 'data':data}
             validity_masker = models.get_valid({'validity_maskers':['intensity', 'cast_shadow', 'morphology'], 'options' : valid_options})
             return model, validity_masker
+        case 'lambertian_harmonic':
+            data = {'normals', 'points', 'pixels', 'indices', 'l_max'}
+            parameters = {'rho', 'light_locations', 'light_power', 'light_principal_direction', 'free_rotation', 'coefficients'}
+            model = {'light':'harmonic', 'renderers':['lambertian'], 'parameters':parameters, 'data':data}
+            validity_masker = models.get_valid({'validity_maskers':['intensity', 'cast_shadow', 'morphology'], 'options' : valid_options})
+            return model, validity_masker
         case 'grid':
             data = {'normals', 'points', 'pixels', 'min_range', 'max_range', 'pixel_step'}
             parameters = {'rho', 'direction_grid', 'intensity_grid'}

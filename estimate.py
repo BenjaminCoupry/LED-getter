@@ -33,7 +33,9 @@ def main():
                 tqdm_refresh=args.tqdm_refresh,
                 added_values=added_values,
                 flip_lp=args.flip_lp,
-                flip_mesh= (not args.not_flip_mesh) 
+                flip_mesh= (not args.not_flip_mesh),
+                apply_geometry_images_undisto = (not args.not_apply_geometry_images_undisto),
+                apply_images_undisto= (not args.not_apply_images_undisto)
             )
         
         if is_ps:

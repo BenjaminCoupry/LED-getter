@@ -30,7 +30,7 @@ def parse_main_args():
     parser = argparse.ArgumentParser(description="Estimate light for photometric stereo")
 
     parser.add_argument(
-        '--pattern', type=str, choices=['directional', 'rail', 'punctual', 'LED', 'specular', 'harmonic', 'grid', 'PS'], required=True,
+        '--pattern', type=str, choices=['directional', 'rail', 'punctual', 'LED', 'specular', 'harmonic', 'grid', 'lambertian_harmonic', 'PS'], required=True,
         help="Lighting pattern type."
     )
     parser.add_argument(
@@ -113,6 +113,14 @@ def parse_main_args():
     
     parser.add_argument(
         '--not_flip_mesh', action='store_true', help='Do not flip coordinates (y,z) when loading a 3D mesh'
+        )
+    
+    parser.add_argument(
+        '--not_apply_geometry_images_undisto', action='store_true', help='Do not apply undisto when loading geometry from images or npz'
+        )
+
+    parser.add_argument(
+        '--not_apply_images_undisto', action='store_true', help='Do not apply undisto when loading images'
         )
 
 

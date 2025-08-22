@@ -1,7 +1,9 @@
 import numpy
+import jax
 import glob
 import os
 import ledgetter.utils.files as files
+import ledgetter.image.camera as camera
 
 
 def format_meshroom_intrinsic(meshroom_intrinsic):
@@ -32,9 +34,9 @@ def format_meshroom_intrinsic(meshroom_intrinsic):
     cy = height / 2 + float(meshroom_intrinsic['principalPoint'][1])
 
     # Get intrinsics matrix
-    K = numpy.array([[fx, 0, cx], [0, fy, cy], [0, 0, 1]], dtype=numpy.float32)
+    K = camera.build_K_matrix(fx, cx, cy, fy)
 
-    distorsion = numpy.array(meshroom_intrinsic['distortionParams'], dtype=numpy.float32)
+    distorsion = jax.numpy.asarray(meshroom_intrinsic['distortionParams'], dtype=jax.numpy.float32)
 
     return K, int(width), int(height), distorsion
 
@@ -50,8 +52,8 @@ def format_meshroom_extrinsic(meshroom_extrinsic):
             - Array 3,: Translation vector.
     """
     # Get rotation matrix and center in OpenGL convention
-    R = numpy.array(meshroom_extrinsic['pose']['transform']['rotation'], dtype=numpy.float32).reshape([3,3])
-    t = numpy.array(meshroom_extrinsic['pose']['transform']['center'], dtype=numpy.float32)
+    R = jax.numpy.array(meshroom_extrinsic['pose']['transform']['rotation'], dtype=numpy.float32).reshape([3,3])
+    t = jax.numpy.array(meshroom_extrinsic['pose']['transform']['center'], dtype=numpy.float32)
     return R, t
 
 def unpack_sfm(sfm):

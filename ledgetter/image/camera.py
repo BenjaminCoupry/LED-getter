@@ -33,10 +33,32 @@ def get_rototranslation_matrix(R, t, to_camera=False):
         transform = jax.numpy.linalg.inv(transform)
     return transform
 
+def apply_transform(transform, points):
+    transform = transform if transform is not None else jax.numpy.eye(4)
+    homogeneous = vector_tools.to_homogeneous(points)
+    transformed = jax.numpy.einsum('uk, ...k -> ...u', transform, homogeneous)[...,:-1]
+    return transformed
+
 def get_geometry(raycaster, K):
     def geometry(coordinates):
         d = get_camera_rays(coordinates, K)
-        mask, normals, points = raycaster(0, d)
+        mask, normals, points, _ = raycaster(0, d)
         return mask, normals, points
     return geometry
 
+def build_K_matrix(focal_length, x0, y0, fy=None):
+    """
+    Build the camera intrinsic matrix.
+
+    Parameters:
+    focal_length (float): Focal length of the camera.
+    x0 (float): First coordinate of the principal point.
+    y0 (float): Seccond coordinate of the principal point.
+
+    Returns:
+    numpy.ndarray: Camera intrinsic matrix (3x3).
+    """
+    K = jax.numpy.asarray([[focal_length, 0, x0],
+                    [0, focal_length if fy is None else fy, y0],
+                    [0, 0, 1]])
+    return K
