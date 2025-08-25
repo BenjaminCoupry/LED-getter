@@ -38,8 +38,8 @@ def parse_main_args():
         help="Exports to skip."
     )
     parser.add_argument(
-        '--ps_images_paths', nargs='+', type=str, required=True,
-        help="Photometric stereo images."
+        '--ps_images_paths', nargs='+', type=str, required=True, action='append',
+        help="Photometric stereo images. Call multiple times to superpose images."
     )
     parser.add_argument(
         '--out_path', type=str, required=True,
@@ -105,6 +105,11 @@ def parse_main_args():
     parser.add_argument(
         '--pixel_step', type=int, default=None,
         help="Size of pixel step for grid light estimation."
+    )
+
+    parser.add_argument(
+        '--spheres_to_load', nargs='+', type=str, default=None,
+        help="Names of the spheres to load when loading sphere geometry, default is all."
     )
 
     parser.add_argument(

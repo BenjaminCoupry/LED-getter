@@ -20,7 +20,7 @@ def main():
     with jax.default_device(jax.devices(args.backend)[0]):
         values, images, mask, raycaster, shapes, full_shape, output, optimizer, scale, light_dict, light_names =\
             preprocessing.preprocess(
-                args.ps_images_paths,
+                list(zip(*args.ps_images_paths)),
                 sliced=sliced,
                 meshroom_project=args.meshroom_project,
                 aligned_image_path=args.aligned_image_path,
@@ -35,7 +35,8 @@ def main():
                 flip_lp=args.flip_lp,
                 flip_mesh= (not args.not_flip_mesh),
                 apply_geometry_images_undisto = (not args.not_apply_geometry_images_undisto),
-                apply_images_undisto= (not args.not_apply_images_undisto)
+                apply_images_undisto= (not args.not_apply_images_undisto),
+                spheres_to_load=args.spheres_to_load
             )
         
         if is_ps:

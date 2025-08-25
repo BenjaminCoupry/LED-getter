@@ -7,6 +7,7 @@ import open3d
 import yaml
 import json
 import pathlib
+import itertools
 import ledgetter.image.undistort as undistort
 import ledgetter.image.grids as grids
 import ledgetter.image.camera as camera
@@ -66,7 +67,7 @@ def load_image(path):
                 image = jax.numpy.asarray(raw.postprocess(use_camera_wb=True, output_bps=16, no_auto_bright=True, gamma=(1,1), half_size=False, user_flip = 0)/(2**16-1))
         else:
             raise ValueError(f"Unknown image format: {format}")
-    elif type(path) is list:
+    elif type(path) is tuple:
         image = load_image(path[0])
         for p in path[1:]:
             image = jax.numpy.maximum(image, load_image(p))
@@ -204,7 +205,7 @@ def load_image_geometry(path, pixels, pose=None, batch_size=100, apply_undisto=T
         raise ValueError(f"Unknown image format: {format}")
     return mask, normals, points, raycaster
 
-def load_sphere_geometry(path, pixels, pose):
+def load_sphere_geometry(path, pixels, pose, spheres_to_load = None):
     format = pathlib.Path(path).suffix.lower()
     if format in {'.yaml', '.json'}:
         with open(path, 'r') as f:
@@ -212,7 +213,8 @@ def load_sphere_geometry(path, pixels, pose):
                 sphere_dict= yaml.safe_load(f)
             elif format in {'.json'}:
                 sphere_dict = json.load(f)
-        spheres = list(map(lambda ob : sphere_dict['objects'][ob]['sphere'], sphere_dict['objects']))
+        objects = sphere_dict['objects'] if spheres_to_load is None else {k: v for k, v in sphere_dict['objects'].items() if k in spheres_to_load}
+        spheres = list(map(lambda ob : objects[ob]['sphere'], objects))
         centers_world = jax.numpy.asarray(list(map(lambda s : [s['center']['x'], s['center']['y'], s['center']['z']], spheres)))
         radii = jax.numpy.asarray(jax.numpy.asarray(list(map(lambda s : s['radius'], spheres))))
         K = jax.numpy.asarray(pose['K'])
@@ -230,7 +232,7 @@ def load_sphere_geometry(path, pixels, pose):
         raise ValueError(f"Unknown sphere format: {format}")
     return mask, normals, points, raycaster
 
-def load_geometry(path, pixels, pose=None, flip_mesh=True, batch_size=100, apply_undisto=True):
+def load_geometry(path, pixels, pose=None, flip_mesh=True, batch_size=100, apply_undisto=True, spheres_to_load = None):
     """
     Loads 3D geometry data from a file or extracts it from a mesh.
 
@@ -253,7 +255,7 @@ def load_geometry(path, pixels, pose=None, flip_mesh=True, batch_size=100, apply
         mesh_path = meshroom.get_mesh_path(path) if os.path.isdir(path) else path #direct path or path to a meshroom project
         mask, normals, points, raycaster = load_mesh_geometry(mesh_path, pixels, pose, flip_mesh=flip_mesh)
     elif format in {'.yaml', '.json'}:
-        mask, normals, points, raycaster = load_sphere_geometry(path, pixels, pose=pose)
+        mask, normals, points, raycaster = load_sphere_geometry(path, pixels, pose=pose, spheres_to_load = spheres_to_load)
     else:
         raise ValueError(f"Unknown geometry format: {format}")
     return mask, normals, points, raycaster
