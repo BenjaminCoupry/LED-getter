@@ -18,7 +18,7 @@ def main():
     chuncker, _ = chuncks.get_chuncker((args.step, args.step))
     sliced = next(itertools.islice(chuncker, args.slice_i, args.slice_i + 1, None))
     with jax.default_device(jax.devices(args.backend)[0]):
-        values, images, mask, raycaster, shapes, full_shape, output, optimizer, scale, light_dict, light_names =\
+        values, images, mask, raycaster, shapes, full_shape, output, optimizer, scale, light_dict, light_names, pose =\
             preprocessing.preprocess(
                 list(zip(*args.ps_images_paths)),
                 sliced=sliced,
@@ -45,7 +45,7 @@ def main():
         else:
             light_dict, validity_mask = light_estimation.estimate_light(args.iterations, args.pattern, values, images, mask, raycaster, shapes, output, optimizer, scale, light_dict, delta=args.delta)
 
-        outputs.export_results(args.out_path, validity_mask, light_dict, mask, images, light_names, skip = args.skip_export)
+        outputs.export_results(args.out_path, validity_mask, light_dict, mask, images, light_names, skip = args.skip_export, pose=pose)
 
 if __name__ == "__main__":
     main()

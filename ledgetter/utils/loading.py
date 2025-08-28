@@ -251,9 +251,11 @@ def load_geometry(path, pixels, pose=None, flip_mesh=True, batch_size=100, apply
             mask, normals, points, raycaster = load_npz_geometry(path, pixels, pose=pose, batch_size=batch_size, apply_undisto=apply_undisto)
         elif format in {'.png'}:
             mask, normals, points, raycaster = load_image_geometry(path, pixels, pose=pose, batch_size=batch_size, apply_undisto=apply_undisto)
-    elif format in {'.obj', '.ply'} or os.path.isdir(path):  #extracting geometry from a mesh
-        mesh_path = meshroom.get_mesh_path(path) if os.path.isdir(path) else path #direct path or path to a meshroom project
-        mask, normals, points, raycaster = load_mesh_geometry(mesh_path, pixels, pose, flip_mesh=flip_mesh)
+    elif os.path.isdir(path):
+        mesh_path = meshroom.get_mesh_path(path)
+        mask, normals, points, raycaster = load_geometry(mesh_path, pixels, pose, flip_mesh=flip_mesh)
+    elif format in {'.obj', '.ply'}:
+        mask, normals, points, raycaster = load_mesh_geometry(path, pixels, pose, flip_mesh=flip_mesh)
     elif format in {'.yaml', '.json'}:
         mask, normals, points, raycaster = load_sphere_geometry(path, pixels, pose=pose, spheres_to_load = spheres_to_load)
     else:
@@ -273,28 +275,28 @@ def load_pose(path, aligned_image_path=None):
     dict: A dictionary containing camera pose parameters.
     """
     format = pathlib.Path(path).suffix.lower()
-    if format in {'.json', '.yaml'}: #given pose.json
-        with open(path, 'r') as f:
-            if format in {'.yaml'}:
-                pose_dict= yaml.safe_load(f)
-            elif format in {'.json'}:
-                pose_dict = json.load(f)
-        if 'K' in pose_dict:
-            K = jax.numpy.asarray(pose_dict['K'])
-        else:
-            K = camera.build_K_matrix(pose_dict['camera']['focal'], pose_dict['camera']['principal_point']['x'], pose_dict['camera']['principal_point']['y'])
-        R = jax.numpy.asarray(pose_dict['R']) if 'R' in pose_dict else None
-        t = jax.numpy.asarray(pose_dict['t']) if 't' in pose_dict else None
-        width = int(pose_dict['width']) if 'width' in pose_dict else None
-        height = int(pose_dict['height']) if 'height' in pose_dict else None
-        distorsion = jax.numpy.asarray(pose_dict['distorsion']) if 'distorsion' in pose_dict else None
+    if format in {'.json', '.yaml', '.sfm'}:
+        if format in {'.json', '.yaml'}:
+            with open(path, 'r') as f:
+                if format in {'.yaml'}:
+                    pose_dict= yaml.safe_load(f)
+                elif format in {'.json'}:
+                    pose_dict = json.load(f)
+        elif format in {'.sfm'}:
+            with open(path, 'r') as f:
+                sfm = json.load(f)
+            view_id = meshroom.get_view_id(sfm, aligned_image_path)
+            pose_dict = meshroom.get_pose_dict(sfm, view_id)
+        K = jax.numpy.asarray(pose_dict['K']) if ('K' in pose_dict and pose_dict['K'] is not None) else camera.build_K_matrix(pose_dict['camera']['focal'], pose_dict['camera']['principal_point']['x'], pose_dict['camera']['principal_point']['y'])
+        R = jax.numpy.asarray(pose_dict['R']) if ('R' in pose_dict and pose_dict['R'] is not None) else None
+        t = jax.numpy.asarray(pose_dict['t']) if ('t' in pose_dict and pose_dict['t'] is not None) else None
+        width = int(pose_dict['width']) if ('width' in pose_dict and pose_dict['width'] is not None) else None
+        height = int(pose_dict['height']) if ('height' in pose_dict and pose_dict['height'] is not None) else None
+        distorsion = jax.numpy.asarray(pose_dict['distorsion']) if ('distorsion' in pose_dict and pose_dict['distorsion'] is not None) else None
         pose = {'K':K, 'R':R, 't':t, 'width':width, 'height':height, 'distorsion':distorsion}
     elif os.path.isdir(path) and aligned_image_path is not None: #given meshroom project
         sfm_path = meshroom.get_sfm_path(path)
-        with open(sfm_path, 'r') as f:
-            sfm = json.load(f)
-        view_id = meshroom.get_view_id(sfm, aligned_image_path)
-        pose = meshroom.get_pose(sfm, view_id)
+        pose = load_pose(sfm_path, aligned_image_path=aligned_image_path)
     else:
         pose=None
     return pose

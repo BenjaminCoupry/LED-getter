@@ -105,7 +105,7 @@ def export_light(path, light_dict, validity_mask, light_names):
     except Exception as e :
         print(f"Serialization exception : {e}, skipping light serialization")
 
-def export_misc(path, light_dict, validity_mask, mask, images, light_names):
+def export_misc(path, light_dict, validity_mask, mask, images, light_names, pose):
     os.makedirs(path, exist_ok=True)
     light_direction, light_intensity = light_dict['light'](**light_dict['light_values'])
     rendered_images = models.get_grouped_renderer(light_dict['model']['renderers'])(light_direction, light_intensity, **light_dict['light_values'])
@@ -123,8 +123,13 @@ def export_misc(path, light_dict, validity_mask, mask, images, light_names):
     if plot_function is not None:
         light_plot = functions.filter_args(plot_function)(**light_dict['light_values'], mask=mask, names = light_names)
         light_plot.write_html(os.path.join(path, 'light_plot.html'))
+    if pose is not None:
+        func = lambda p : p.tolist() if isinstance(p, jax.numpy.ndarray) else p
+        pose_list = jax.tree_util.tree_map(func, pose)
+        with open(os.path.join(path, 'pose.json'), "w") as f:
+            json.dump(pose_list, f, indent=2)
 
-def export_results(out_path, validity_mask, light_dict, mask, images, light_names, skip=None):
+def export_results(out_path, validity_mask, light_dict, mask, images, light_names, skip=None, pose=None):
     if skip is None or 'images' not in skip:
         export_images(os.path.join(out_path,'images'), light_dict, images, validity_mask, mask, light_names)
     if skip is None or 'lightmaps' not in skip:
@@ -138,4 +143,4 @@ def export_results(out_path, validity_mask, light_dict, mask, images, light_name
     if skip is None or 'light' not in skip:
         export_light(os.path.join(out_path,'light'), light_dict, validity_mask, light_names)
     if skip is None or 'misc' not in skip:
-        export_misc(os.path.join(out_path,'misc'), light_dict, validity_mask, mask, images, light_names)
+        export_misc(os.path.join(out_path,'misc'), light_dict, validity_mask, mask, images, light_names, pose)

@@ -5,56 +5,28 @@ import os
 import ledgetter.utils.files as files
 import ledgetter.image.camera as camera
 
-
-def format_meshroom_intrinsic(meshroom_intrinsic):
-    """Formats camera intrinsic parameters into a matrix.
-
-    Args:
-        intrinsic (dict): Dictionary containing camera intrinsics.
-
-    Returns:
-        Tuple:
-            - Array 3, 3: Camera intrinsic matrix.
-            - int: Image width.
-            - int: Image height.
-            - Array N,: Distortion parameters.
-    """
-    width = float(meshroom_intrinsic['width'])
-    height = float(meshroom_intrinsic['height'])
-
+def format_intrinsic(intrinsic):
+    width = float(intrinsic['width'])
+    height = float(intrinsic['height'])
     # Get focal length
-    sensor_width = float(meshroom_intrinsic['sensorWidth'])
-    sensor_height = float(meshroom_intrinsic['sensorHeight'])
-    focal_length = float(meshroom_intrinsic['focalLength'])
+    sensor_width = float(intrinsic['sensorWidth'])
+    sensor_height = float(intrinsic['sensorHeight'])
+    focal_length = float(intrinsic['focalLength'])
     fx = focal_length * width / sensor_width
     fy = focal_length * height / sensor_height
-
     # Get principal point
-    cx = width / 2 + float(meshroom_intrinsic['principalPoint'][0])
-    cy = height / 2 + float(meshroom_intrinsic['principalPoint'][1])
-
-    # Get intrinsics matrix
+    cx = width / 2 + float(intrinsic['principalPoint'][0])
+    cy = height / 2 + float(intrinsic['principalPoint'][1])
+    distorsion = jax.numpy.asarray(intrinsic['distortionParams'], dtype=numpy.float32)
     K = camera.build_K_matrix(fx, cx, cy, fy)
+    intrinsic_dict = {'K':K, 'distorsion':distorsion, 'width':int(width), 'height':int(height)}
+    return intrinsic_dict
 
-    distorsion = jax.numpy.asarray(meshroom_intrinsic['distortionParams'], dtype=jax.numpy.float32)
-
-    return K, int(width), int(height), distorsion
-
-def format_meshroom_extrinsic(meshroom_extrinsic):
-    """Extracts the rotation matrix and translation vector from a pose dictionary.
-
-    Args:
-        pose (dict): Dictionary containing camera pose information.
-
-    Returns:
-        Tuple:
-            - Array 3, 3: Rotation matrix.
-            - Array 3,: Translation vector.
-    """
-    # Get rotation matrix and center in OpenGL convention
-    R = jax.numpy.array(meshroom_extrinsic['pose']['transform']['rotation'], dtype=numpy.float32).reshape([3,3])
-    t = jax.numpy.array(meshroom_extrinsic['pose']['transform']['center'], dtype=numpy.float32)
-    return R, t
+def format_extrinsic(extrinsic):
+    R = jax.numpy.reshape(jax.numpy.array(extrinsic['pose']['transform']['rotation'], dtype=numpy.float32), (3,3))
+    t = jax.numpy.array(extrinsic['pose']['transform']['center'], dtype=numpy.float32)
+    extrinsic_dict = {'R':R, 't':t}
+    return extrinsic_dict
 
 def unpack_sfm(sfm):
     """Unpacks the structure-from-motion (SfM) data.
@@ -99,29 +71,12 @@ def get_mesh_path(project_path):
     mesh_path = max(glob.glob(os.path.join(project_path,'MeshroomCache','MeshFiltering','*','mesh.obj')), key=os.path.getmtime)
     return mesh_path
 
-def get_pose(sfm, view_id):
-    """Retrieves the camera pose and intrinsic parameters for a given view.
-
-    Args:
-        sfm (dict): Structure-from-motion data.
-        view_id (int): ID of the view.
-
-    Returns:
-        dict: Dictionary containing:
-            - 'K' (Array 3, 3): Camera intrinsic matrix.
-            - 'R' (Array 3, 3): Rotation matrix.
-            - 't' (Array 3,): Translation vector.
-            - 'width' (int): Image width.
-            - 'height' (int): Image height.
-            - 'distorsion' (Array N,): Distortion parameters.
-    """
+def get_pose_dict(sfm, view_id):
     extrinsics, views, intrinsics, _ = unpack_sfm(sfm)
     view = views[view_id]
     extrinsic_id, instrinsic_id = view['poseId'], view['intrinsicId']
     extrinsic, intrinsic = extrinsics[extrinsic_id], intrinsics[instrinsic_id]
-    K, width, height, distorsion = format_meshroom_intrinsic(intrinsic)
-    R, t = format_meshroom_extrinsic(extrinsic)
-    pose_dict = {'K':K, 'R':R, 't':t, 'width':width, 'height':height, 'distorsion' : distorsion}
+    pose_dict = format_extrinsic(extrinsic) | format_intrinsic(intrinsic)
     return pose_dict
 
 def get_view_id(sfm, image_path):

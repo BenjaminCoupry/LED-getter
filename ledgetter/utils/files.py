@@ -43,9 +43,10 @@ def find_similar_path(source, options):
     elements = None if (pairs_it is None or similarity == 0) else list(pairs_it)
     return elements, similarity
 
-def first_existing_file(paths):
-    if any(map(os.path.isfile, paths)):
-        path = next(filter(lambda p : os.path.isfile(p), paths))
+def first_existing_file(paths, allow_dir = True, allow_any_obj=False):
+    predicate = lambda p : p is not None and (allow_any_obj or os.path.isfile(p) or (os.path.isdir(p) and allow_dir))
+    if any(map(predicate, paths)):
+        path = next(filter(predicate, paths))
     else:
         path = None
     return path
