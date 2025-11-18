@@ -7,7 +7,7 @@ import functools
 import ledgetter.utils.functions as functions
 
 def is_pixelwise(value):
-    return value in {'rho', 'rho_spec', 'normals', 'points', 'pixels', 'images', 'light_local_direction', 'light_local_intensity', 'validity_mask'}
+    return value in {'rho', 'rho_spec', 'normals', 'points', 'pixels', 'images', 'light_local_direction', 'light_local_intensity', 'validity_mask', 'objects_id'}
 
 
 def get_intrinsic_shape(value, shapes):

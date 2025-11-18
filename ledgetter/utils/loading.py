@@ -152,10 +152,10 @@ def load_mesh_geometry(path, pixels, pose, flip_mesh=True):
         mesh = load_mesh(path, transform=transform, flip_mesh=flip_mesh)
         raycaster = raycasting.get_mesh_raycaster(mesh)
         geometry = jax.jit(camera.get_geometry(raycaster, K), backend='cpu')
-        mask, normals, points = jax.device_put(geometry(pixels), device=pixels.device)
+        mask, normals, points, objects_id_mask = jax.device_put(geometry(pixels), device=pixels.device)
     else:
         raise ValueError(f"Unknown mesh format: {format}")
-    return mask, normals, points, raycaster
+    return mask, normals, points, raycaster, objects_id_mask
 
 def load_npz_geometry(path, pixels, pose=None, batch_size=100, apply_undisto=True):
     format = pathlib.Path(path).suffix.lower()
@@ -179,9 +179,10 @@ def load_npz_geometry(path, pixels, pose=None, batch_size=100, apply_undisto=Tru
         normals_unorm, mask_normals = extract_pixels(normalmap_loaded, pixels, pose=pose, kernel_span=5, batch_size=batch_size, mask=mask_loaded, apply_undisto=apply_undisto)
         normals = vector_tools.norm_vector(normals_unorm)[1]
         mask = jax.numpy.logical_and(mask_points, mask_normals)
+        objects_id_mask = jax.numpy.full(mask.shape, -1, dtype=jax.numpy.int32).at[mask].set(0)
     else:
         raise ValueError(f"Unknown geometry format: {format}")
-    return mask, normals, points, raycaster
+    return mask, normals, points, raycaster, objects_id_mask
 
 def load_image_geometry(path, pixels, pose=None, batch_size=100, apply_undisto=True):
     format = pathlib.Path(path).suffix.lower()
@@ -201,9 +202,10 @@ def load_image_geometry(path, pixels, pose=None, batch_size=100, apply_undisto=T
         normals_unorm, mask = extract_pixels(normalmap_loaded, pixels, pose=pose, kernel_span=5, batch_size=batch_size, mask=mask_data, apply_undisto=apply_undisto)
         normals = vector_tools.norm_vector(normals_unorm)[1]
         points = jax.numpy.full(normals.shape, jax.numpy.nan, dtype=jax.numpy.float32)
+        objects_id_mask = jax.numpy.full(mask.shape, -1, dtype=jax.numpy.int32).at[mask].set(0)
     else:
         raise ValueError(f"Unknown image format: {format}")
-    return mask, normals, points, raycaster
+    return mask, normals, points, raycaster, objects_id_mask
 
 def load_sphere_geometry(path, pixels, pose, spheres_to_load = None):
     format = pathlib.Path(path).suffix.lower()
@@ -224,13 +226,13 @@ def load_sphere_geometry(path, pixels, pose, spheres_to_load = None):
         else:
             transform=None
         centers = camera.apply_transform(transform, centers_world)
-        raycasters = list(map(lambda c, r : raycasting.get_sphere_raycaster(c, r), jax.numpy.unstack(centers, axis=0), jax.numpy.unstack(radii, axis=0)))
+        raycasters = list(map(lambda c, r, id : raycasting.get_sphere_raycaster(c, r, id), jax.numpy.unstack(centers, axis=0), jax.numpy.unstack(radii, axis=0), jax.numpy.arange(centers.shape[0])))
         raycaster = raycasting.merge_raycasters(raycasters)
         geometry = jax.jit(camera.get_geometry(raycaster, K), backend='cpu')
-        mask, normals, points = jax.device_put(geometry(pixels), device=pixels.device)
+        mask, normals, points, objects_id_mask = jax.device_put(geometry(pixels), device=pixels.device)
     else:
         raise ValueError(f"Unknown sphere format: {format}")
-    return mask, normals, points, raycaster
+    return mask, normals, points, raycaster, objects_id_mask
 
 def load_geometry(path, pixels, pose=None, flip_mesh=True, batch_size=100, apply_undisto=True, spheres_to_load = None):
     """
@@ -248,19 +250,19 @@ def load_geometry(path, pixels, pose=None, flip_mesh=True, batch_size=100, apply
     format = pathlib.Path(path).suffix.lower()
     if format in {'.npz', '.png'}: #given .npz geometry
         if format in {'.npz'}:
-            mask, normals, points, raycaster = load_npz_geometry(path, pixels, pose=pose, batch_size=batch_size, apply_undisto=apply_undisto)
+            mask, normals, points, raycaster, objects_id_mask = load_npz_geometry(path, pixels, pose=pose, batch_size=batch_size, apply_undisto=apply_undisto)
         elif format in {'.png'}:
-            mask, normals, points, raycaster = load_image_geometry(path, pixels, pose=pose, batch_size=batch_size, apply_undisto=apply_undisto)
+            mask, normals, points, raycaster, objects_id_mask = load_image_geometry(path, pixels, pose=pose, batch_size=batch_size, apply_undisto=apply_undisto)
     elif os.path.isdir(path):
         mesh_path = meshroom.get_mesh_path(path)
-        mask, normals, points, raycaster = load_geometry(mesh_path, pixels, pose, flip_mesh=flip_mesh)
+        mask, normals, points, raycaster, objects_id_mask = load_geometry(mesh_path, pixels, pose, flip_mesh=flip_mesh)
     elif format in {'.obj', '.ply'}:
-        mask, normals, points, raycaster = load_mesh_geometry(path, pixels, pose, flip_mesh=flip_mesh)
+        mask, normals, points, raycaster, objects_id_mask = load_mesh_geometry(path, pixels, pose, flip_mesh=flip_mesh)
     elif format in {'.yaml', '.json'}:
-        mask, normals, points, raycaster = load_sphere_geometry(path, pixels, pose=pose, spheres_to_load = spheres_to_load)
+        mask, normals, points, raycaster, objects_id_mask = load_sphere_geometry(path, pixels, pose=pose, spheres_to_load = spheres_to_load)
     else:
         raise ValueError(f"Unknown geometry format: {format}")
-    return mask, normals, points, raycaster
+    return mask, normals, points, raycaster, objects_id_mask
 
 def load_pose(path, aligned_image_path=None):
     """

@@ -36,17 +36,19 @@ def get_mesh_raycaster(mesh):
         ans = scene.cast_rays(open3d.core.Tensor(rays))
         normals_world = ans['primitive_normals'].numpy()
         intersection_time = ans['t_hit'].numpy()
-        return normals_world, intersection_time
+        objects_id_mask_uint = ans['geometry_ids'].numpy()
+        objects_id_mask = numpy.where(objects_id_mask_uint == scene.INVALID_ID, -1, objects_id_mask_uint.astype(numpy.int32))
+        return normals_world, intersection_time, objects_id_mask
     def raycaster(t, d):
         rays = jax.numpy.concatenate(jax.numpy.broadcast_arrays(t, d), axis=-1)
-        out_type = (jax.ShapeDtypeStruct(rays.shape[:-1]+(3,), jax.numpy.float32), jax.ShapeDtypeStruct(rays.shape[:-1], jax.numpy.float32))
-        normals, intersection_time = jax.pure_callback(lambda rays : o3d_render(numpy.asarray(rays)), out_type, rays)
+        out_type = (jax.ShapeDtypeStruct(rays.shape[:-1]+(3,), jax.numpy.float32), jax.ShapeDtypeStruct(rays.shape[:-1], jax.numpy.float32), jax.ShapeDtypeStruct(rays.shape[:-1], jax.numpy.int32))
+        normals, intersection_time, objects_id_mask = jax.pure_callback(lambda rays : o3d_render(numpy.asarray(rays)), out_type, rays)
         mask = intersection_time < jax.numpy.inf
         points = get_intersection_point(t, d, intersection_time)
-        return mask, normals, points, intersection_time
+        return mask, normals, points, intersection_time, objects_id_mask
     return raycaster
 
-def get_sphere_raycaster(center, radius):
+def get_sphere_raycaster(center, radius, object_id=0):
     def get_intersection_time(t, d):
         a = jax.numpy.square(vector_tools.norm_vector(d)[0])
         b = 2 * jax.numpy.einsum('...i, ...i -> ...', d, t - center)
@@ -61,16 +63,18 @@ def get_sphere_raycaster(center, radius):
       mask = intersection_time < jax.numpy.inf
       points = get_intersection_point(t, d, intersection_time)
       normals = vector_tools.norm_vector(points-center)[1]
-      return mask, normals, points, intersection_time
+      objects_id_mask = jax.numpy.where(mask, object_id, -1)
+      return mask, normals, points, intersection_time, objects_id_mask
     return raycaster
 
 
 def merge_raycasters(raycasters):
     def raycaster(t, d):
-        mask, normals, points, intersection_time = raycasters[0](t,d)
+        mask, normals, points, intersection_time, objects_id_mask = raycasters[0](t,d)
         for raycaster in raycasters[1:]:
-            new_mask, new_normals, new_points, new_intersection_time = raycaster(t,d)
+            new_mask, new_normals, new_points, new_intersection_time, new_objects_id_mask = raycaster(t,d)
             replace_mask = new_intersection_time < intersection_time
-            mask, normals, points, intersection_time = jax.numpy.where(replace_mask, new_mask, mask), jax.numpy.where(replace_mask[..., None], new_normals, normals), jax.numpy.where(replace_mask[..., None], new_points, points), jax.numpy.where(replace_mask, new_intersection_time, intersection_time)
-        return mask, normals, points, intersection_time
+            mask, normals, points, intersection_time, objects_id_mask =\
+                  jax.numpy.where(replace_mask, new_mask, mask), jax.numpy.where(replace_mask[..., None], new_normals, normals), jax.numpy.where(replace_mask[..., None], new_points, points), jax.numpy.where(replace_mask, new_intersection_time, intersection_time), jax.numpy.where(replace_mask, new_objects_id_mask, objects_id_mask)
+        return mask, normals, points, intersection_time, objects_id_mask
     return raycaster

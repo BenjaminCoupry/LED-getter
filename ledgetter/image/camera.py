@@ -42,8 +42,8 @@ def apply_transform(transform, points):
 def get_geometry(raycaster, K):
     def geometry(coordinates):
         d = get_camera_rays(coordinates, K)
-        mask, normals, points, _ = raycaster(0, d)
-        return mask, normals, points
+        mask, normals, points, _, objects_id_mask = raycaster(0, d)
+        return mask, normals, points, objects_id_mask
     return geometry
 
 def build_K_matrix(focal_length, x0, y0, fy=None):

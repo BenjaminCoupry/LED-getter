@@ -11,7 +11,7 @@ def intensity_validity(images, local_threshold, global_threshold):
 
 def cast_shadow_validity(raycaster, light_local_directions, points, radius):
     p0 = jax.numpy.expand_dims(points,axis=-2) + radius * light_local_directions
-    intersection_mask, _, _, _ = raycaster(p0, light_local_directions)
+    intersection_mask, _, _, _, _ = raycaster(p0, light_local_directions)
     validity_mask = jax.numpy.logical_not(intersection_mask)
     return validity_mask
 
