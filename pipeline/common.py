@@ -127,6 +127,10 @@ def parse_main_args():
     parser.add_argument(
         '--not_apply_images_undisto', action='store_true', help='Do not apply undisto when loading images'
         )
+    
+    parser.add_argument(
+        '--remove_image_gamma', action='store_true', help='Remove the gamma correction when loading a developped image'
+        )
 
 
     return parser.parse_args()

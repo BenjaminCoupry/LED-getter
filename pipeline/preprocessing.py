@@ -11,7 +11,8 @@ import ledgetter.utils.files as files
 def preprocess(ps_images_paths, sliced=slice(None), meshroom_project=None, aligned_image_path=None,
                 geometry_path=None, pose_path=None, black_image_path=None, loaded_light_folder=None,
                 load_light_function=False, learning_rate=0.001, tqdm_refresh=0, added_values = {}, 
-                flip_lp=False, flip_mesh=True, apply_images_undisto=True, apply_geometry_images_undisto=True, spheres_to_load = None):
+                flip_lp=False, flip_mesh=True, apply_images_undisto=True, apply_geometry_images_undisto=True,
+                spheres_to_load = None, remove_image_gamma = False):
     ps_images_paths = list(map(lambda p : p if type(p) is tuple else (p,), ps_images_paths))
     light_names = list(map(lambda p : pathlib.Path(p[0]).stem, ps_images_paths))
     pose_path = files.first_existing_file([pose_path, meshroom_project, geometry_path])
@@ -25,7 +26,7 @@ def preprocess(ps_images_paths, sliced=slice(None), meshroom_project=None, align
             loading.load_geometry(geometry_path, pixelmap, pose, flip_mesh=flip_mesh, batch_size = 1000,
                                 apply_undisto=apply_geometry_images_undisto, spheres_to_load = spheres_to_load)
     geom_images, undisto_mask, (_, n_im, n_c) =\
-            loading.load_images(images_paths, pixelmap[geometric_mask], pose, batch_size = 1000, apply_undisto=apply_images_undisto)
+            loading.load_images(images_paths, pixelmap[geometric_mask], pose, batch_size = 1000, apply_undisto=apply_images_undisto, remove_image_gamma = remove_image_gamma)
     geom_images, n_im = (jax.numpy.maximum(0, geom_images[...,:-1] - geom_images[...,-1:]), n_im-1) if black_image_path else (geom_images, n_im)
     geom_points, geom_normals, geom_pixels, geom_objects_id = pointmap[geometric_mask], normalmap[geometric_mask], pixelmap[geometric_mask], objects_id_mask[geometric_mask]
     points, normals, pixels, images, objects_id = geom_points[undisto_mask],geom_normals[undisto_mask], geom_pixels[undisto_mask], geom_images[undisto_mask], geom_objects_id[undisto_mask]

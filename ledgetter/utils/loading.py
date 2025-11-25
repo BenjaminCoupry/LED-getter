@@ -48,7 +48,7 @@ def get_pixelmap(size):
     coordinates = jax.numpy.stack(jax.numpy.meshgrid(width_range,height_range),axis=-1)
     return coordinates
 
-def load_image(path):
+def load_image(path, remove_image_gamma=False):
     """
     Loads an image from a given file path, supporting both developed and raw images.
 
@@ -62,6 +62,8 @@ def load_image(path):
         format = pathlib.Path(path).suffix.lower()
         if format in {'.jpg', '.jpeg', '.png'}: #given a developed image
             image = jax.numpy.asarray(iio.imread(path)/255.0)
+            if remove_image_gamma :
+                image = jax.numpy.power(image, 2.222)
         elif format in {'.nef'}: #given a raw image
             with rawpy.imread(path) as raw:
                 image = jax.numpy.asarray(raw.postprocess(use_camera_wb=True, output_bps=16, no_auto_bright=True, gamma=(1,1), half_size=False, user_flip = 0)/(2**16-1))
@@ -97,7 +99,7 @@ def extract_pixels(image, pixels, pose=None, kernel_span=5, batch_size=100, mask
         undisto_image, mask = grid(pixels)
     return undisto_image, mask
 
-def load_images(paths, pixels, pose=None, kernel_span=3, batch_size=100, apply_undisto=True):
+def load_images(paths, pixels, pose=None, kernel_span=3, batch_size=100, apply_undisto=True, remove_image_gamma = False):
     """
     Loads multiple images and extracts pixel values from them.
 
@@ -116,7 +118,7 @@ def load_images(paths, pixels, pose=None, kernel_span=3, batch_size=100, apply_u
     masks = jax.numpy.empty(n_pix + (n_im,), dtype=jax.numpy.bool)
     for i in tqdm.tqdm(range(n_im), desc = 'loading'):
         image_path = paths[i]
-        image = load_image(image_path)
+        image = load_image(image_path, remove_image_gamma=remove_image_gamma)
         extracted, mask_i = extract_pixels(image, pixels, pose=pose, kernel_span=kernel_span, batch_size=batch_size, apply_undisto=apply_undisto)
         stored = stored.at[..., i].set(extracted)
         masks = masks.at[..., i].set(mask_i)

@@ -36,7 +36,8 @@ def main():
                 flip_mesh= (not args.not_flip_mesh),
                 apply_geometry_images_undisto = (not args.not_apply_geometry_images_undisto),
                 apply_images_undisto= (not args.not_apply_images_undisto),
-                spheres_to_load=args.spheres_to_load
+                spheres_to_load=args.spheres_to_load,
+                remove_image_gamma = args.remove_image_gamma
             )
         
         if is_ps:
