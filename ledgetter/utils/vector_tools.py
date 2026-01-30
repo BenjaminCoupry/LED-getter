@@ -12,7 +12,7 @@ def norm_vector(v, epsilon = 1e-8):
         Array ..., dim: unit direction vectors
     """
     s = jax.numpy.square(v)
-    norm = jax.numpy.sqrt(jax.numpy.sum(jax.numpy.square(v), axis=-1) + epsilon)
+    norm = jax.numpy.sqrt(jax.numpy.sum(s, axis=-1) + epsilon)
     direction = v / jax.numpy.expand_dims(norm, axis=-1)
     return norm, direction
 
