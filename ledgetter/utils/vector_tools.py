@@ -96,9 +96,9 @@ def get_coordinates(shape):
     return coordinates
 
 def rgb_to_r3(rgb):
-    r3 = (2.0 * jax.numpy.clip(rgb/255.0,0,1)) - 1.0
+    r3 = ((2.0 * jax.numpy.clip(rgb/255.0,0,1)) - 1.0)*jax.numpy.asarray([1,-1,-1])
     return r3
 
 def r3_to_rgb(r3):
-    rgb = jax.numpy.uint8((0.5 * (jax.numpy.clip(r3,-1,1) + 1))*255.0)
+    rgb = jax.numpy.uint8((0.5 * (jax.numpy.clip(r3*jax.numpy.asarray([1,-1,-1]),-1,1) + 1))*255.0)
     return rgb

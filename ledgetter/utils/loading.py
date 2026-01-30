@@ -190,7 +190,7 @@ def load_image_geometry(path, pixels, pose=None, batch_size=100, apply_undisto=T
     format = pathlib.Path(path).suffix.lower()
     if format in {'.png'}:
         normalmap_image = load_image(path)
-        normalmap_loaded = vector_tools.rgb_to_r3(normalmap_image*255.0)*jax.numpy.asarray([1,-1,-1])
+        normalmap_loaded = vector_tools.rgb_to_r3(normalmap_image*255.0)
         normals_norm = vector_tools.norm_vector(normalmap_loaded)[0]
         mask_normals = jax.numpy.logical_and(normals_norm>0.95, normals_norm<1.05)
         mask_path = pathlib.Path(path).with_name("mask.png")
