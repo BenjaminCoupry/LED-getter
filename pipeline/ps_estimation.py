@@ -9,7 +9,8 @@ import functools
 import jax
 import pipeline.common as common
 
-def get_ps_minimizer(iterations, model, loss, optimizer, projections):
+def get_ps_minimizer(iterations, model, loss, optimizer, projections, backend):
+    @functions.pass_by_device("gpu", backend)
     @functools.partial(jax.jit, backend='gpu')
     @functions.force_positional
     @functions.structured_return(['rho', 'normals', None])
@@ -20,18 +21,17 @@ def get_ps_minimizer(iterations, model, loss, optimizer, projections):
         return parameters['rho'], parameters['normals'], losses_values
     return minimize
 
-def estimate_ps(iterations, values, images, mask, raycaster, shapes, output, optimizer, scale, light_dict, delta=0.01, chunck_number = 100, return_ps_only=True):
+def estimate_ps(iterations, values, images, mask, raycaster, shapes, output, optimizer, scale, light_dict, delta=0.01, chunck_number = 100, return_ps_only=True, backend="cpu"):
     model, validity_masker = defaults.get_default('PS', raycaster, scale)
     light, renderer, projections = models.get_model(model)
     loss = models.get_loss(light, renderer, delta=delta)
-    minimize = get_ps_minimizer(iterations, model, loss, optimizer, projections)
+    minimize = get_ps_minimizer(iterations, model, loss, optimizer, projections, backend)
     
     def treatement(state, chunck, images, **values):
         chunck_elems = images.shape[0]
         chunck_shapes = (chunck_elems,)+shapes[1:] 
         values = values_generator.merge_and_generate(values, light_dict['light_values'], model['parameters'] | model['data'], chunck_shapes, images, light = light_dict['light'])
         validity_mask = validity_masker(shapes = chunck_shapes, images=images, light=light, **values)
-        #g_images, g_validity_mask, g_values = jax.device_put((images, validity_mask, values), jax.devices("gpu")[0])
         (losses_values_ps, ), updated_values = minimize(images, validity_mask, **values)
         to_split = (dict() if return_ps_only else values) | updated_values | {'validity_mask' : validity_mask}
         chuncked_values, atomic_values = chuncks.split_dict(to_split, models.is_pixelwise)

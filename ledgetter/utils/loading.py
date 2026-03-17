@@ -21,6 +21,7 @@ import ledgetter.models.models as models
 import ledgetter.utils.vector_tools as vector_tools
 import ledgetter.image.grids as grids
 import ledgetter.utils.chuncks as chuncks
+import OpenEXR
 
 
 def get_pixelmap(size):
@@ -61,21 +62,62 @@ def load_image(path, remove_image_gamma=False):
     if type(path) is str:
         format = pathlib.Path(path).suffix.lower()
         if format in {'.jpg', '.jpeg', '.png'}: #given a developed image
-            image = jax.numpy.asarray(iio.imread(path)/255.0)
-            if remove_image_gamma :
-                image = jax.numpy.power(image, 2.222)
+            image = load_developped_image(path, remove_image_gamma=remove_image_gamma)
+        elif format in {'.exr'}:
+            image = load_exr_image(path)
         elif format in {'.nef'}: #given a raw image
-            with rawpy.imread(path) as raw:
-                image = jax.numpy.asarray(raw.postprocess(use_camera_wb=True, output_bps=16, no_auto_bright=True, gamma=(1,1), half_size=False, user_flip = 0)/(2**16-1))
+            image = load_raw_image(path)
+        elif os.path.isdir(path):
+            paths = tuple(os.path.join(path, f) for f in os.listdir(path)
+                if os.path.isfile(os.path.join(path, f)))
+            image = load_composed_image(paths, remove_image_gamma=remove_image_gamma)
         else:
             raise ValueError(f"Unknown image format: {format}")
     elif type(path) is tuple:
-        image = load_image(path[0])
-        for p in path[1:]:
-            image = jax.numpy.maximum(image, load_image(p))
+        paths = path
+        image = load_composed_image(paths, remove_image_gamma=remove_image_gamma)
     else:
         raise ValueError(f"Unknown image path type: {type(path)}")
     return image
+
+def load_composed_image(paths, remove_image_gamma=False):
+    if type(paths) is tuple:
+        image = load_image(paths[0], remove_image_gamma=remove_image_gamma)
+        for p in paths[1:]:
+            image = jax.numpy.maximum(image, load_image(p, remove_image_gamma=remove_image_gamma))
+    else:
+        raise ValueError(f"Unknown composed image path type: {type(paths)}")
+    return image
+
+def load_developped_image(path, remove_image_gamma=False):
+    format = pathlib.Path(path).suffix.lower()
+    if format in {'.jpg', '.jpeg', '.png'}: #given a developed image
+        image = jax.numpy.asarray(iio.imread(path)/255.0)
+        if remove_image_gamma :
+            image = jax.numpy.power(image, 2.222)
+    else:
+        raise ValueError(f"Unknown developped image format: {format}")
+    return image
+
+def load_raw_image(path):
+    format = pathlib.Path(path).suffix.lower()
+    if format in {'.nef'}:
+        with rawpy.imread(path) as raw:
+            image = jax.numpy.asarray(raw.postprocess(use_camera_wb=True, output_bps=16, no_auto_bright=True, gamma=(1,1), half_size=False, user_flip = 0)/(2**16-1))
+    else:
+        raise ValueError(f"Unknown raw image format: {format}")
+    return image
+
+def load_exr_image(path):
+    format = pathlib.Path(path).suffix.lower()
+    if format in {'.exr'}:
+        with OpenEXR.File(path) as infile:
+            image = ...
+            raise ValueError(f"WORK IN PROGRESS")
+    else:
+        raise ValueError(f"Unknown exr image format: {format}")
+    return image
+
 
 def extract_pixels(image, pixels, pose=None, kernel_span=5, batch_size=100, mask=None, apply_undisto=True):
     """

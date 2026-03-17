@@ -1,6 +1,20 @@
 import inspect
 import functools
 import networkx
+import jax
+
+def pass_by_device(device_in, device_out):
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            in_args, in_kwargs = jax.device_put((args, kwargs), jax.devices(device_in)[0])
+            jax.block_until_ready((in_args, in_kwargs))
+            results = func(*in_args, **in_kwargs)
+            jax.block_until_ready(results)
+            out_results = jax.device_put(results, jax.devices(device_out)[0])
+            return out_results
+        return wrapper
+    return decorator
 
 def force_positional(func):
     sig = inspect.signature(func)

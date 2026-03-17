@@ -51,7 +51,7 @@ def parse_main_args():
     )
     parser.add_argument(
         '--slice_i', type=int, default=0,
-        help="Decimation shift"
+        help="Decimation shift, set to -1 during PS for all slices"
     )
     parser.add_argument(
         '--meshroom_project', type=str, default=None,
@@ -132,5 +132,5 @@ def parse_main_args():
         '--remove_image_gamma', action='store_true', help='Remove the gamma correction when loading a developped image'
         )
 
-
+    
     return parser.parse_args()
