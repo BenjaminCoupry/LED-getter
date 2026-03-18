@@ -30,7 +30,7 @@ def parse_main_args():
     parser = argparse.ArgumentParser(description="Estimate light for photometric stereo")
 
     parser.add_argument(
-        '--pattern', type=str, choices=['directional', 'rail', 'punctual', 'LED', 'specular', 'harmonic', 'grid', 'lambertian_harmonic', 'PS'], required=True,
+        '--pattern', type=str, nargs='+', choices=['directional', 'rail', 'punctual', 'LED', 'specular', 'harmonic', 'grid', 'lambertian_harmonic', 'PS'], required=True,
         help="Lighting pattern type."
     )
     parser.add_argument(
