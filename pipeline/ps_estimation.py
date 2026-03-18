@@ -23,8 +23,8 @@ def get_ps_minimizer(iterations, model, loss, optimizer, projections, backend):
 
 def estimate_ps(iterations, values, images, mask, raycaster, shapes, output, optimizer, scale, light_dict, delta=0.01, chunck_number = 100, return_ps_only=True, backend="cpu"):
     model, validity_masker = defaults.get_default('PS', raycaster, scale)
-    light, renderer, projections = models.get_model(model)
-    loss = models.get_loss(light, renderer, delta=delta)
+    light, brdf, projections = models.get_model(model)
+    loss = models.get_loss(light, brdf, delta=delta)
     minimize = get_ps_minimizer(iterations, model, loss, optimizer, projections, backend)
     
     def treatement(state, chunck, images, **values):

@@ -379,13 +379,13 @@ def load_model(path):
     if format in {'.json'}:
         with open(path, 'r') as f:
             model_dict = json.load(f)
-        model = {'light': model_dict['light'], 'renderers': model_dict['renderers'], 'parameters': set(model_dict['parameters']), 'data':   set(model_dict['data'])}
+        model = {'light': model_dict['light'], 'brdfs': model_dict['brdfs'], 'parameters': set(model_dict['parameters']), 'data':   set(model_dict['data'])}
     elif format in {'.npz'}:
         with numpy.load(path) as light_archive:
             light_values_keys = set(light_archive.keys())
         model = models.model_from_parameters(set(), light_values_keys)
     elif format in {'.lp'}:
-        model = {'light': 'directional', 'renderers': [], 'parameters': {'light_directions', 'dir_light_power'}, 'data':  set()}
+        model = {'light': 'directional', 'brdfs': [], 'parameters': {'light_directions', 'dir_light_power'}, 'data':  set()}
     else:
         raise ValueError(f"Unknown model format: {format}")
     return model

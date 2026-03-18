@@ -1,6 +1,6 @@
 import jax
 import optax
-import ledgetter.rendering.renderers as renderers
+import ledgetter.rendering.brdfs as brdfs
 import ledgetter.rendering.lights as lights
 import ledgetter.rendering.validity as validity
 import functools
@@ -55,14 +55,14 @@ def get_validity(validity_masker):
             raise ValueError(f"Unknown validity {validity_masker}") 
         
 @functions.filter_output_args
-def get_renderer(renderer):
-    match renderer:
+def get_brdf(brdf):
+    match brdf:
         case 'lambertian':
-            return renderers.lambertian_renderer
+            return brdfs.lambertian_brdf
         case 'phong':
-            return renderers.phong_renderer
+            return brdfs.phong_brdf
         case _:
-            raise ValueError(f"Unknown renderer: {renderer}")
+            raise ValueError(f"Unknown brdf: {brdf}")
 
 @functions.filter_output_args
 def get_light(light):
@@ -99,23 +99,23 @@ def get_valid(valid) :
         return validity_mask
     return valid_function
 
-def get_grouped_renderer(unique_renderers):
-    renderer = lambda *args, **kwargs : {renderer_i:
-        get_renderer(renderer_i)(*args, **kwargs) for renderer_i in unique_renderers}
-    return renderer
+def get_grouped_brdf(unique_brdfs):
+    brdf = lambda *args, **kwargs : {brdf_i:
+        get_brdf(brdf_i)(*args, **kwargs) for brdf_i in unique_brdfs}
+    return brdf
 
 def get_model(model):
     light = get_light(model['light'])
-    renderer = get_grouped_renderer(model['renderers'])
+    brdf = get_grouped_brdf(model['brdfs'])
     projections = {parameter : get_projection(parameter) for parameter in model['parameters']}
-    return light, renderer, projections
+    return light, brdf, projections
 
 
-def get_loss(light, renderer, delta=0.01):
+def get_loss(light, brdf, delta=0.01):
     def loss(parameters, data, images, validity_mask):
         values =  data | parameters
         light_directions, light_intensity = light(**values)
-        renders = renderer(light_directions, light_intensity, **values)
+        renders = brdf(light_directions, light_intensity, **values)
         render = jax.tree_util.tree_reduce(lambda x, y : x + y, renders)
         errors = optax.losses.huber_loss(render, targets = images, delta = delta)
         loss_value = jax.numpy.nanmean(errors, where = jax.numpy.expand_dims(validity_mask, axis=-2))
@@ -125,9 +125,9 @@ def get_loss(light, renderer, delta=0.01):
 
 def model_from_parameters(parameters, data):
     values = parameters | data
-    renderers = renderers_from_values(values)
+    brdfs = brdfs_from_values(values)
     light_type = light_from_values(values)
-    model = {'light': light_type, 'renderers': renderers, 'parameters': list(parameters), 'data': list(data)}
+    model = {'light': light_type, 'brdfs': brdfs, 'parameters': list(parameters), 'data': list(data)}
     return model
 
 
@@ -151,10 +151,10 @@ def light_from_values(values):
         raise ValueError(f"Unknown light")
     return light
 
-def renderers_from_values(values):
-    renderers = []
+def brdfs_from_values(values):
+    brdfs = []
     if 'rho' in values:
-        renderers.append('lambertian')
+        brdfs.append('lambertian')
     if 'rho_spec' in values and 'tau_spec' in values:
-        renderers.append('phong')
-    return renderers
+        brdfs.append('phong')
+    return brdfs

@@ -2,7 +2,7 @@ import jax
 import ledgetter.utils.vector_tools as vector_tools
 
 
-def lambertian_renderer(light_direction, light_intensity, normals, points, rho):
+def lambertian_brdf(light_direction, light_intensity, normals, points, rho):
     """
     Computes the Lambertian model
 
@@ -19,7 +19,7 @@ def lambertian_renderer(light_direction, light_intensity, normals, points, rho):
     render =  jax.nn.relu(jax.numpy.einsum('...li, ...lc, ...i, ...c -> ...cl', light_direction, light_intensity, normals, rho))
     return render
 
-def phong_renderer(light_direction, light_intensity, normals, points, rho_spec, tau_spec, epsilon = 1e-6):
+def phong_brdf(light_direction, light_intensity, normals, points, rho_spec, tau_spec, epsilon = 1e-6):
     """
     Computes the specular reflectance using a Phong-like model given light direction, intensity, 
     surface normals, camera position, and specular properties.

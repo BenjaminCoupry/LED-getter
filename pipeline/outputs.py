@@ -13,7 +13,7 @@ import ledgetter.utils.light_serialization as light_serialization
 def export_images(path, light_dict, images, validity_mask, mask, light_names):
     os.makedirs(path, exist_ok=True)
     light_direction, light_intensity = light_dict['light'](**light_dict['light_values'])
-    rendered_images = models.get_grouped_renderer(light_dict['model']['renderers'])(light_direction, light_intensity, **light_dict['light_values'])
+    rendered_images = models.get_grouped_brdf(light_dict['model']['brdfs'])(light_direction, light_intensity, **light_dict['light_values'])
     rendered_image = jax.tree_util.tree_reduce(lambda x, y : x + y, rendered_images)
     delta = jax.numpy.abs(images-rendered_image)
     scale = numpy.quantile(images, 0.98)
@@ -28,10 +28,10 @@ def export_images(path, light_dict, images, validity_mask, mask, light_names):
         iio.imwrite(os.path.join(path, name, 'delta.png'),numpy.uint8(255.0*numpy.clip(delta_image,0,1)))
         validity_image = vector_tools.build_masked(mask, validity_mask[:,im])
         iio.imwrite(os.path.join(path, name, 'validity.png'), validity_image)
-        for renderer in rendered_images:
-            os.makedirs(os.path.join(path, name, 'renderers'), exist_ok=True)
-            simulated_image_renderer = vector_tools.build_masked(mask, rendered_images[renderer][:,:,im]/scale)
-            iio.imwrite(os.path.join(path, name, 'renderers',f'{renderer}.png'),numpy.uint8(255.0*numpy.clip(simulated_image_renderer,0,1)))
+        for brdf in rendered_images:
+            os.makedirs(os.path.join(path, name, 'brdfs'), exist_ok=True)
+            simulated_image_brdf = vector_tools.build_masked(mask, rendered_images[brdf][:,:,im]/scale)
+            iio.imwrite(os.path.join(path, name, 'brdfs',f'{brdf}.png'),numpy.uint8(255.0*numpy.clip(simulated_image_brdf,0,1)))
 
 def export_lightmaps(path, light_dict, mask, light_names):
     os.makedirs(path, exist_ok=True)
@@ -108,7 +108,7 @@ def export_light(path, light_dict, validity_mask, light_names):
 def export_misc(path, light_dict, validity_mask, mask, images, light_names, pose):
     os.makedirs(path, exist_ok=True)
     light_direction, light_intensity = light_dict['light'](**light_dict['light_values'])
-    rendered_images = models.get_grouped_renderer(light_dict['model']['renderers'])(light_direction, light_intensity, **light_dict['light_values'])
+    rendered_images = models.get_grouped_brdf(light_dict['model']['brdfs'])(light_direction, light_intensity, **light_dict['light_values'])
     rendered_image = jax.tree_util.tree_reduce(lambda x, y : x + y, rendered_images)
     delta = jax.numpy.abs(images-rendered_image)
     iio.imwrite(os.path.join(path,'mask.png'), mask)
