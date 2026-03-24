@@ -10,29 +10,28 @@ import jax
 import pipeline.common as common
 
 def get_ps_minimizer(iterations, model, loss, optimizer, projections, backend):
-    @functions.pass_by_device("gpu", backend)
-    @functools.partial(jax.jit, backend='gpu')
+    @functions.pass_by_device(backend)
     @functions.force_positional
     @functions.structured_return(['rho', 'normals', None])
-    @functools.partial(jax.numpy.vectorize, signature='(c,l),(l),(l,i),(l,c),(i),(i),(c)->(c),(i),(t)')
-    def minimize(images, validity_mask, light_local_direction, light_local_intensity, points, normals, rho):
+    @functools.partial(jax.numpy.vectorize, signature='(c,l),(l),(l,i),(l,f),(i),(i),(f),(c)->(f),(i),(t)', excluded=(8,))
+    def minimize(images, validity_mask, light_local_direction, light_local_intensity, points, normals, rho, filters, shapes):
         parameters, data = values_generator.split_parameters_data(locals(), model['parameters'], model['data'])
-        parameters, losses_values = functools.partial(gradient_descent.get_gradient_descent(optimizer, loss, iterations, projections=projections, output=None, extra = True, unroll=1), data=data, images=images, validity_mask=validity_mask)(parameters)
+        parameters, losses_values = functools.partial(gradient_descent.get_gradient_descent(optimizer, loss, iterations, projections=projections, output=None, extra = True, unroll=1), data=data, images=images, validity_mask=validity_mask, shapes=shapes)(parameters)
         return parameters['rho'], parameters['normals'], losses_values
     return minimize
 
-def estimate_ps(iterations, values, images, mask, raycaster, shapes, output, optimizer, scale, light_dict, delta=0.01, chunck_number = 100, return_ps_only=True, backend="cpu"):
+def estimate_ps(iterations, values, images, mask, raycaster, shapes, output, optimizer, scale, light_dict, delta=0.01, chunck_number = 100, return_ps_only=True, ps_backend='gpu'):
     model, validity_masker = defaults.get_default('PS', raycaster, scale)
     light, brdf, projections = models.get_model(model)
     loss = models.get_loss(light, brdf, delta=delta)
-    minimize = get_ps_minimizer(iterations, model, loss, optimizer, projections, backend)
+    minimize = get_ps_minimizer(iterations, model, loss, optimizer, projections, ps_backend)
     
     def treatement(state, chunck, images, **values):
         chunck_elems = images.shape[0]
         chunck_shapes = (chunck_elems,)+shapes[1:] 
         values = values_generator.merge_and_generate(values, light_dict['light_values'], model['parameters'] | model['data'], chunck_shapes, images, light = light_dict['light'])
         validity_mask = validity_masker(shapes = chunck_shapes, images=images, light=light, **values)
-        (losses_values_ps, ), updated_values = minimize(images, validity_mask, **values)
+        (losses_values_ps, ), updated_values = minimize(images, validity_mask, shapes=chunck_shapes, **values)
         to_split = (dict() if return_ps_only else values) | updated_values | {'validity_mask' : validity_mask}
         chuncked_values, atomic_values = chuncks.split_dict(to_split, models.is_pixelwise)
         losses_sum, n, _ = state

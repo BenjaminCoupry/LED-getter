@@ -103,6 +103,11 @@ def parse_main_args():
     )
 
     parser.add_argument(
+        '--ps_backend', type=str, default='gpu', choices=['cpu', 'gpu'],
+        help="Backend for heavy computations."
+    )
+
+    parser.add_argument(
         '--pixel_step', type=int, default=None,
         help="Size of pixel step for grid light estimation."
     )
@@ -121,16 +126,13 @@ def parse_main_args():
         )
     
     parser.add_argument(
-        '--not_apply_geometry_images_undisto', action='store_true', help='Do not apply undisto when loading geometry from images or npz'
+        '--not_apply_geometry_undisto', action='store_true', help='Do not apply undisto when loading geometry from mesh or spheres'
         )
 
     parser.add_argument(
-        '--not_apply_images_undisto', action='store_true', help='Do not apply undisto when loading images'
-        )
-    
-    parser.add_argument(
         '--remove_image_gamma', action='store_true', help='Remove the gamma correction when loading a developped image'
         )
+    
 
     
     return parser.parse_args()

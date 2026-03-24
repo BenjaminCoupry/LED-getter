@@ -7,9 +7,9 @@ import ledgetter.space.coord_systems as coord_systems
 import ledgetter.space.spherical_harmonics as spherical_harmonics
 import ledgetter.image.grids as grids
 
-#todo experimenter avec les vectorize
+#TODO gerer avec n_f
 
-def get_directional_light(light_directions, dir_light_power, points):
+def get_directional_light(light_directions, dir_light_power, points, shapes):
     """
     Generates directional light sources with given directions and power.
 
@@ -19,14 +19,14 @@ def get_directional_light(light_directions, dir_light_power, points):
         points (Array ..., 3): The points in space where the light is to be evaluated.
 
     Returns:
-        Tuple[Array ..., l, 3], Array ..., l, c]: Light directions and corresponding intensities.
+        Tuple[Array ..., l, 3], Array ..., l, f]: Light directions and corresponding intensities.
     """
-    nl, npix = dir_light_power.shape[-1], points.shape[:-1]
-    light_local_intensity = jax.numpy.broadcast_to(jax.numpy.expand_dims(dir_light_power, axis=-1), npix+(nl,3))
-    light_local_directions = jax.numpy.broadcast_to(light_directions, npix+(nl,3))
+    (n_pix, n_im, n_c, n_f) = shapes
+    light_local_intensity = jax.numpy.broadcast_to(jax.numpy.expand_dims(dir_light_power, axis=-1), (n_pix, n_im,n_f))
+    light_local_directions = jax.numpy.broadcast_to(light_directions, (n_pix, n_im,3))
     return light_local_directions, light_local_intensity
 
-def get_rail_light(center, light_distance, light_directions, dir_light_power, points):
+def get_rail_light(center, light_distance, light_directions, dir_light_power, points, shapes):
     """
     Computes the local direction and intensity of light sources along a rail, 
     based on their distance from a given center and their direction.
@@ -39,16 +39,16 @@ def get_rail_light(center, light_distance, light_directions, dir_light_power, po
         points (Array ..., 3): The points in space where the light is to be evaluated.
 
     Returns:
-        Tuple[Array ..., l, 3], Array ..., l, c]: Local directions and intensities of light sources at given points.
+        Tuple[Array ..., l, 3], Array ..., l, f]: Local directions and intensities of light sources at given points.
     """
-    nl, npix = dir_light_power.shape[-1], points.shape[:-1]
+    (n_pix, n_im, n_c, n_f) = shapes
     light_locations = center + light_distance*light_directions
     light_local_distances, light_local_directions = vector_tools.norm_vector(light_locations - jax.numpy.expand_dims(points, axis=-2))
     light_local_power = jax.numpy.expand_dims(dir_light_power * jax.numpy.square(light_distance), axis=-2) / jax.numpy.square(light_local_distances)
-    light_local_intensity = jax.numpy.broadcast_to(jax.numpy.expand_dims(light_local_power, axis=-1), npix+(nl,3))
+    light_local_intensity = jax.numpy.broadcast_to(jax.numpy.expand_dims(light_local_power, axis=-1), (n_pix, n_im,n_f))
     return light_local_directions, light_local_intensity
 
-def get_isotropic_punctual_light(light_locations, light_power, points):
+def get_isotropic_punctual_light(light_locations, light_power, points, shapes):
     """
     Computes the local direction and intensity of isotropic punctual light sources at given points.
 
@@ -58,15 +58,15 @@ def get_isotropic_punctual_light(light_locations, light_power, points):
         points (Array ..., 3): The points in space where the light is to be evaluated.
 
     Returns:
-        Tuple[Array ..., l, 3], Array ..., l, c]: Local directions and intensities of light sources at given points.
+        Tuple[Array ..., l, 3], Array ..., l, f]: Local directions and intensities of light sources at given points.
     """
-    nl, npix = light_power.shape[-1], points.shape[:-1]
+    (n_pix, n_im, n_c, n_f) = shapes
     light_local_distances, light_local_directions = vector_tools.norm_vector(light_locations - jax.numpy.expand_dims(points, axis=-2))
     light_local_power = jax.numpy.expand_dims(light_power, axis=-2) / jax.numpy.square(light_local_distances)
-    light_local_intensity = jax.numpy.broadcast_to(jax.numpy.expand_dims(light_local_power, axis=-1), npix+(nl,3))
+    light_local_intensity = jax.numpy.broadcast_to(jax.numpy.expand_dims(light_local_power, axis=-1), (n_pix, n_im,n_f))
     return light_local_directions, light_local_intensity
 
-def get_led_light(light_locations, light_power, light_principal_direction, mu, points):
+def get_led_light(light_locations, light_power, light_principal_direction, mu, points, shapes):
     """
     Computes the local direction and intensity of LED light sources with directional and anisotropic properties.
 
@@ -78,26 +78,28 @@ def get_led_light(light_locations, light_power, light_principal_direction, mu, p
         points (Array ..., 3): The points in space where the light is to be evaluated.
 
     Returns:
-        Tuple[Array ..., l, 3], Array ..., l, c]: Local directions and intensities of LED light sources at given points, accounting for anisotropic lighting.
+        Tuple[Array ..., l, 3], Array ..., l, f]: Local directions and intensities of LED light sources at given points, accounting for anisotropic lighting.
     """
+    (n_pix, n_im, n_c, n_f) = shapes
     light_local_distances, light_local_directions = vector_tools.norm_vector(light_locations - jax.numpy.expand_dims(points, axis=-2))
     angular_factor = jax.nn.relu(jax.numpy.einsum('...li, li -> ...l', -light_local_directions, light_principal_direction))
     anisotropy = jax.numpy.power(jax.numpy.expand_dims(angular_factor, axis=-1), mu)
     light_local_power = jax.numpy.expand_dims(light_power, axis=-2) / jax.numpy.square(light_local_distances)
-    light_local_intensity = jax.numpy.einsum('...l, ...lc ->...lc', light_local_power, anisotropy)
+    light_local_intensity = jax.numpy.einsum('...l, ...lf ->...lf', light_local_power, anisotropy)
     return light_local_directions, light_local_intensity
 
-def get_grid_light(direction_grid, intensity_grid, pixels, min_range, max_range, span=3):
-    nl, npix = intensity_grid.shape[-1], pixels.shape[:-1]
+def get_grid_light(direction_grid, intensity_grid, pixels, min_range, max_range, shapes, span=3):
+    (n_pix, n_im, n_c, n_f) = shapes
+    n_l, n_pix = intensity_grid.shape[-1], pixels.shape[:-1]
     x_transform = (jax.numpy.asarray(direction_grid.shape[:2])-1)*(pixels-min_range)/(max_range-min_range)
     grid_interpolator = lambda grid : filters.get_lanczos_reampler(grids.get_grid_from_array(grid), span)(x_transform)[0]
     light_local_directions_unnormed =  grid_interpolator(direction_grid)
     light_local_intensity_interp = grid_interpolator(intensity_grid)
     light_local_directions =  vector_tools.norm_vector(light_local_directions_unnormed)[1]
-    light_local_intensity = jax.numpy.broadcast_to(jax.numpy.expand_dims(light_local_intensity_interp, axis=-1), npix+(nl,3))
+    light_local_intensity = jax.numpy.broadcast_to(jax.numpy.expand_dims(light_local_intensity_interp, axis=-1), (n_pix, n_l,n_f))
     return light_local_directions, light_local_intensity
 
-def get_constant_light(light_local_direction, light_local_intensity):
+def get_constant_light(light_local_direction, light_local_intensity, shapes):
     """
     Returns the local direction and intensity of a constant light source.
     Parameters:
@@ -108,11 +110,11 @@ def get_constant_light(light_local_direction, light_local_intensity):
     Returns:
         tuple: A tuple containing the light's local direction and intensity.
     """
-
+    (n_pix, n_im, n_c, n_f) = shapes
     return light_local_direction, light_local_intensity
     
 
-def get_harmonic_light(light_locations, light_power, light_principal_direction, free_rotation, coefficients, l_max, points):
+def get_harmonic_light(light_locations, light_power, light_principal_direction, free_rotation, coefficients, l_max, points, shapes):
     """
     Computes the harmonic light intensity and directions for a set of light sources.
 
@@ -139,14 +141,14 @@ def get_harmonic_light(light_locations, light_power, light_principal_direction, 
         tuple: A tuple containing:
             - light_local_directions (jax.numpy.ndarray): An array of shape (..., P, L, 3) 
               representing the normalized directions from the points to the light sources.
-            - light_local_intensity (jax.numpy.ndarray): An array of shape (..., P, L, C) 
+            - light_local_intensity (jax.numpy.ndarray): An array of shape (..., P, L, f) 
               representing the computed light intensity at the points for each light source.
     """
-
+    (n_pix, n_im, n_c, n_f) = shapes
     light_local_distances, light_local_directions = vector_tools.norm_vector(light_locations - jax.numpy.expand_dims(points, axis=-2))
     g_coefficients = vector_tools.partial_stop_gradients(coefficients, 0).T[:,None,None,:]
     swaped_anisotropy = spherical_harmonics.oriented_sh_function(-light_local_directions, light_principal_direction, free_rotation, g_coefficients, int(l_max))
     anisotropy = jax.nn.relu(jax.numpy.moveaxis(swaped_anisotropy, 0, -1))
     light_local_power = jax.numpy.expand_dims(light_power, axis=-2) / jax.numpy.square(light_local_distances)
-    light_local_intensity = jax.numpy.einsum('...l, ...lc ->...lc', light_local_power, anisotropy)
+    light_local_intensity = jax.numpy.einsum('...l, ...lf ->...lf', light_local_power, anisotropy)
     return light_local_directions, light_local_intensity

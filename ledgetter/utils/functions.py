@@ -3,15 +3,18 @@ import functools
 import networkx
 import jax
 
-def pass_by_device(device_in, device_out):
+def pass_by_device(backend):
     def decorator(func):
+        device = jax.devices(backend)[0]
+        device_out = jax.numpy.empty((0,)).device
+        jitted = jax.jit(func, device=device)
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
-            in_args, in_kwargs = jax.device_put((args, kwargs), jax.devices(device_in)[0])
+            in_args, in_kwargs = jax.device_put((args, kwargs), device)
             jax.block_until_ready((in_args, in_kwargs))
-            results = func(*in_args, **in_kwargs)
+            results = jitted(*in_args, **in_kwargs)
             jax.block_until_ready(results)
-            out_results = jax.device_put(results, jax.devices(device_out)[0])
+            out_results = jax.device_put(results, device_out)
             return out_results
         return wrapper
     return decorator

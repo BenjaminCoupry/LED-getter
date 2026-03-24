@@ -30,8 +30,7 @@ def preprocess(args, sliced):
             added_values=added_values,
             flip_lp=args.flip_lp,
             flip_mesh= (not args.not_flip_mesh),
-            apply_geometry_images_undisto = (not args.not_apply_geometry_images_undisto),
-            apply_images_undisto= (not args.not_apply_images_undisto),
+            apply_geometry_undisto = (not args.not_apply_geometry_undisto),
             spheres_to_load=args.spheres_to_load,
             remove_image_gamma = args.remove_image_gamma
         )
@@ -44,10 +43,10 @@ def full_slices_ps(args):
         print(f"Computing slice {slice_i:05d}")
         values, images, mask, raycaster, shapes, full_shape, output, optimizer, scale, light_dict, light_names, pose = preprocess(args, sliced)
         return_ps_only = all(x in args.skip_export for x in {'images', 'lightmaps', 'light', 'misc'})
-        light_dict, validity_mask = ps_estimation.estimate_ps(args.iterations, values, images, mask, raycaster, shapes, output, optimizer, scale, light_dict, delta=args.delta, chunck_number = args.ps_chunck_number, return_ps_only=return_ps_only, backend=args.backend)
+        light_dict, validity_mask = ps_estimation.estimate_ps(args.iterations, values, images, mask, raycaster, shapes, output, optimizer, scale, light_dict, delta=args.delta, chunck_number = args.ps_chunck_number, return_ps_only=return_ps_only, ps_backend=args.ps_backend)
         out_path = os.path.join(args.out_path, 'full_slices_PS', f'slice_{slice_i:05d}')
         values_paths.append(os.path.join(out_path, 'values', 'values.npz'))
-        outputs.export_results(out_path, validity_mask, light_dict, mask, images, light_names, skip = args.skip_export, pose=pose)
+        outputs.export_results(out_path, shapes, validity_mask, light_dict, mask, images, light_names, skip = args.skip_export, pose=pose)
         del values, images, mask, raycaster, shapes, full_shape, output, optimizer, scale, light_dict, light_names, pose, validity_mask
     print("Merging slices")
     values, full_mask = loading.load_chuncked_values(values_paths)
@@ -63,12 +62,12 @@ def estimation(args):
         print(f"Computing pattern {pattern}")
         if pattern=='PS':
             return_ps_only = all(x in args.skip_export for x in {'images', 'lightmaps', 'light', 'misc'})
-            light_dict, validity_mask = ps_estimation.estimate_ps(args.iterations, values, images, mask, raycaster, shapes, output, optimizer, scale, light_dict, delta=args.delta, chunck_number = args.ps_chunck_number, return_ps_only=return_ps_only, backend=args.backend)
+            light_dict, validity_mask = ps_estimation.estimate_ps(args.iterations, values, images, mask, raycaster, shapes, output, optimizer, scale, light_dict, delta=args.delta, chunck_number = args.ps_chunck_number, return_ps_only=return_ps_only, backend=args.ps_backend)
         else:
             light_dict, validity_mask = light_estimation.estimate_light(args.iterations, pattern, values, images, mask, raycaster, shapes, output, optimizer, scale, light_dict, delta=args.delta)
 
         out_path = os.path.join(args.out_path, pattern, f'slice_{args.slice_i:05d}')
-        outputs.export_results(out_path, validity_mask, light_dict, mask, images, light_names, skip = args.skip_export, pose=pose)
+        outputs.export_results(out_path, shapes, validity_mask, light_dict, mask, images, light_names, skip = args.skip_export, pose=pose)
 
 def main():
     args = common.parse_main_args()
@@ -82,3 +81,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+#TODO : charger les données tel quel, dans tous les cas. Quand on charge la geometrie depuis un mesh, utiliser l'undisto inverse.
+# proposer l'undisto globale, sur les cartes de values. Penser a extrapoler au nearest avant le lanczos

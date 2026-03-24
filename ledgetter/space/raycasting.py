@@ -2,7 +2,7 @@ import jax
 import open3d
 import numpy
 import ledgetter.utils.vector_tools as vector_tools
-import ledgetter.optim.quadratics as quadratics
+import ledgetter.optim.polynomials as polynomials
 
 def get_intersection_point(t, d, intersection_time):
     point = t + d * jax.numpy.expand_dims(intersection_time, axis=-1)
@@ -53,7 +53,7 @@ def get_sphere_raycaster(center, radius, object_id=0):
         a = jax.numpy.square(vector_tools.norm_vector(d)[0])
         b = 2 * jax.numpy.einsum('...i, ...i -> ...', d, t - center)
         c = jax.numpy.square(vector_tools.norm_vector(t-center)[0]) -jax.numpy.square(radius)
-        x1, x2 = quadratics.quadratic_roots(a, b, c)
+        x1, x2 = polynomials.quadratic_roots(a, b, c)
         formated_x1 = jax.numpy.where(jax.numpy.logical_or(x1<0, jax.numpy.isnan(x1)), jax.numpy.inf, x1)
         formated_x2 = jax.numpy.where(jax.numpy.logical_or(x2<0, jax.numpy.isnan(x2)), jax.numpy.inf, x2)
         intersection_time = jax.numpy.minimum(formated_x1, formated_x2)

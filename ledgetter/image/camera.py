@@ -2,6 +2,7 @@ import jax
 import open3d
 import numpy
 import ledgetter.utils.vector_tools as vector_tools
+import ledgetter.utils.functions as functions
 
 def get_camera_rays(coordinates, K):
     """Computes camera rays from pixel coordinates.
@@ -40,6 +41,7 @@ def apply_transform(transform, points):
     return transformed
 
 def get_geometry(raycaster, K):
+    @functions.pass_by_device('cpu')
     def geometry(coordinates):
         d = get_camera_rays(coordinates, K)
         mask, normals, points, _, objects_id_mask = raycaster(0, d)

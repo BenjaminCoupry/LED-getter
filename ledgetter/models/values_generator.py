@@ -29,14 +29,16 @@ def split_parameters_data(values, wanted_params, wanted_data):
 
 @functions.generator(inputs=[], outputs=['rho'], registry=registry)
 @functions.filter_args
-def init_rho(images):
-    rho =  jax.numpy.mean(images, axis=-1)
+def init_rho(shapes, images, filters):
+    (n_pix, n_im, n_c, n_f) = shapes
+    mean_images =  jax.numpy.mean(images, axis=-1) #n_pix, c
+    rho = models.channel_to_filters(mean_images, filters)
     return {'rho': rho}
 
 @functions.generator(inputs=[], outputs=['light_directions', 'dir_light_power'], registry=registry)
 @functions.filter_args
 def init_directional_light(shapes):
-    (n_pix, n_im, n_c) = shapes
+    (n_pix, n_im, n_c, n_f) = shapes
     light_directions = jax.numpy.zeros((n_im, 3)).at[:,2].set(-1)
     dir_light_power = jax.numpy.ones((n_im,))
     return {
@@ -69,10 +71,10 @@ def init_punctual_light(points, light_distance, light_directions, dir_light_powe
 @functions.generator(inputs=['points', 'light_locations'], outputs=['light_principal_direction', 'mu'], registry=registry)
 @functions.filter_args
 def init_led_light(shapes, points, light_locations):
-    (n_pix, n_im, n_c) = shapes
+    (n_pix, n_im, n_c, n_f) = shapes
     center = jax.numpy.mean(points, axis=0)
     light_principal_direction = (center-light_locations)/jax.numpy.linalg.norm(center-light_locations,axis=-1, keepdims=True)
-    mu = jax.numpy.ones((n_c,))*0.1
+    mu = jax.numpy.ones((n_f,))*0.1
     return {
         'light_principal_direction': light_principal_direction,
         'mu': mu
@@ -81,7 +83,7 @@ def init_led_light(shapes, points, light_locations):
 @functions.generator(inputs=[], outputs=['rho_spec', 'tau_spec'], registry=registry)
 @functions.filter_args
 def init_specular(shapes):
-    (n_pix, n_im, n_c) = shapes
+    (n_pix, n_im, n_c, n_f) = shapes
     rho_spec = jax.numpy.ones((n_pix,))*0.0
     tau_spec = jax.numpy.ones(tuple())*20.0
     return {
@@ -92,7 +94,7 @@ def init_specular(shapes):
 @functions.generator(inputs=['mu'], outputs=['free_rotation', 'coefficients', 'indices', 'l_max'], registry=registry)
 @functions.filter_args
 def init_sh_light(shapes, mu, l_max=5):
-    (n_pix, n_im, n_c) = shapes
+    (n_pix, n_im, n_c, n_f) = shapes
     goal_function = lambda teta : jax.numpy.power(jax.numpy.cos(teta[:,None]), mu)
     coefficients, indices = spherical_harmonics.coefficients_from_colatitude(goal_function, l_max)
     free_rotation = jax.numpy.zeros((n_im,))
@@ -106,7 +108,7 @@ def init_sh_light(shapes, mu, l_max=5):
 @functions.generator(inputs=['pixels', 'light_directions', 'dir_light_power'], outputs=['direction_grid', 'intensity_grid', 'min_range', 'max_range'], registry=registry)
 @functions.filter_args
 def init_grid(shapes, pixels, light_directions, dir_light_power, pixel_step):
-    (n_pix, n_im, n_c) = shapes
+    (n_pix, n_im, n_c, n_f) = shapes
     min_range, max_range = jax.numpy.min(pixels, axis=0), jax.numpy.max(pixels, axis=0)
     nx, ny = max(2, int((max_range[0]-min_range[0])/pixel_step)), max(2, int((max_range[1]-min_range[1])/pixel_step))
     direction_grid = jax.numpy.tile(light_directions, (nx, ny, 1, 1))

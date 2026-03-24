@@ -24,7 +24,7 @@ def estimate_light(iterations, pattern, values, images, mask, raycaster, shapes,
     light, brdf, projections = models.get_model(model)
     loss = models.get_loss(light, brdf, delta=delta)
     #parameters, losses_values = jax.jit(functools.partial(gradient_descent.get_gradient_descent(optimizer, loss, iterations, projections=projections, output=output, extra = True, unroll=1), images=images, validity_mask=validity_mask))(parameters, data=data, images=images, validity_mask=validity_mask)
-    descent = jax.jit(functools.partial(gradient_descent.get_gradient_descent(optimizer, loss, iterations, projections=projections, output=output, extra = True, unroll=1), data=data))
+    descent = jax.jit(functools.partial(gradient_descent.get_gradient_descent(optimizer, loss, iterations, projections=projections, output=output, extra = True, unroll=1), data=data, shapes=shapes))
     parameters, losses_values = descent(parameters, images=images, validity_mask=validity_mask)
     light_dict = common.update_light_dict(light_dict, name=pattern, losses_values=losses_values, model=model, values=parameters | data, light=light)
     return light_dict, validity_mask

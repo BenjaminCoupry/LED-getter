@@ -3,6 +3,11 @@ import itertools
 import functools
 import ledgetter.utils.vector_tools as vector_tools
 
+def get_grid_from_image(image, mask=None):
+    grid_function = get_grid_from_array(jax.numpy.swapaxes(image, 0, 1), valid_mask = (jax.numpy.swapaxes(mask, 0, 1) if mask is not None else None))
+    return grid_function
+
+
 def get_grid_from_array(array, valid_mask=None):
     """Creates a grid function that retrieves values from an array.
 

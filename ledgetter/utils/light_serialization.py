@@ -1,8 +1,9 @@
 import jax.export
 import ledgetter.utils.functions as functions
 
-def serialize_light(light, values):
-    lambda_expression = lambda points, pixels : light(**(values | {'points':points, 'pixels':pixels}))
+def serialize_light(light, values, shapes):
+    (_, n_im, n_c, n_f) = shapes
+    lambda_expression = lambda points, pixels : light(**(values | {'points':points, 'pixels':pixels, 'shapes': (points.shape[0], n_im, n_c, n_f)}))
     my_scope = jax.export.SymbolicScope()
     s1 = jax.export.symbolic_shape("batch,3", scope=my_scope)
     s2 = jax.export.symbolic_shape("batch,2", scope=my_scope)
