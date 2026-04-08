@@ -72,7 +72,6 @@ def export_lightmaps(path, light_dict, mask, light_names, shapes):
 def export_values(path, light_dict, mask, validity_mask):
     os.makedirs(path, exist_ok=True)
     light_values = light_dict['light_values']
-    filters = light_values['filters']
     numpy.savez(os.path.join(path, 'values.npz'), mask = mask, validity_mask=validity_mask, **light_values)
     os.makedirs(os.path.join(path, 'images'), exist_ok=True)
     if 'normals' in light_values :

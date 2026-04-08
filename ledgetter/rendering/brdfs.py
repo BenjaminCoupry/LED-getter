@@ -1,7 +1,6 @@
 import jax
 import ledgetter.utils.vector_tools as vector_tools
 
-#TODO utiliser filters
 def lambertian_brdf(light_direction, light_intensity, normals, points, rho):
     """
     Computes the Lambertian model

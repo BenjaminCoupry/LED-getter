@@ -7,7 +7,6 @@ import ledgetter.space.coord_systems as coord_systems
 import ledgetter.space.spherical_harmonics as spherical_harmonics
 import ledgetter.image.grids as grids
 
-#TODO gerer avec n_f
 
 def get_directional_light(light_directions, dir_light_power, points, shapes):
     """

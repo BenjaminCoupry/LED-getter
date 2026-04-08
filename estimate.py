@@ -52,7 +52,7 @@ def full_slices_ps(args):
     values, full_mask = loading.load_chuncked_values(values_paths)
     out_path = os.path.join(args.out_path, 'full_slices_PS' ,'merged')
     light_dict = {'light_values': {k: v for k, v in values.items() if k not in {'validity_mask'}}}
-    outputs.export_values(os.path.join(args.out_path,'values'), light_dict, full_mask, values['validity_mask'])
+    outputs.export_values(os.path.join(out_path,'values'), light_dict, full_mask, values['validity_mask'])
 
 def estimation(args):
     chuncker, _ = chuncks.get_chuncker((args.step, args.step))
@@ -62,7 +62,7 @@ def estimation(args):
         print(f"Computing pattern {pattern}")
         if pattern=='PS':
             return_ps_only = all(x in args.skip_export for x in {'images', 'lightmaps', 'light', 'misc'})
-            light_dict, validity_mask = ps_estimation.estimate_ps(args.iterations, values, images, mask, raycaster, shapes, output, optimizer, scale, light_dict, delta=args.delta, chunck_number = args.ps_chunck_number, return_ps_only=return_ps_only, backend=args.ps_backend)
+            light_dict, validity_mask = ps_estimation.estimate_ps(args.iterations, values, images, mask, raycaster, shapes, output, optimizer, scale, light_dict, delta=args.delta, chunck_number = args.ps_chunck_number, return_ps_only=return_ps_only, ps_backend=args.ps_backend)
         else:
             light_dict, validity_mask = light_estimation.estimate_light(args.iterations, pattern, values, images, mask, raycaster, shapes, output, optimizer, scale, light_dict, delta=args.delta)
 
@@ -80,7 +80,136 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    import sys
+    import glob
+    # sys.argv = [
+    #     "estimate.py",
+    #     "--ps_images_paths"
+    #     ]+glob.glob("/media/bcoupry/T7 Shield/CHAUVET_PROJECT/data/chevaux/rti/raw/RTI_*.NEF")+[
+    #     "--geometry_path",
+    #     "/media/bcoupry/T7 Shield/CHAUVET_PROJECT/data/chevaux/multi_view/mesh/mesh.ply",
+    #     "--pose_path",
+    #     "/media/bcoupry/T7 Shield/CHAUVET_PROJECT/data/chevaux/rti/pose.json",
+    #     "--delta",
+    #     "0.01",
+    #     "--learning_rate",
+    #     "0.001",
+    #     "--iterations",
+    #     "1000",
+    #     "--tqdm_refresh",
+    #     "1",
+    #     "--ps_chunck_number",
+    #     "100",
+    #     "--pattern",
+    #     "PS",
+    #     "--out_path",
+    #     "/media/bcoupry/T7 Shield/ARTICLE_GAMMA/test_chevaux",
+    #     "--loaded_light_folder",
+    #     "/media/bcoupry/T7 Shield/ARTICLE_GAMMA/test_chevaux/LED/slice_00000",
+    #     "--step",
+    #     "4",
+    #     "--slice_i",
+    #     "-1",
+    #     "--backend",
+    #     "cpu",
+    #     "--skip_export",
+    #     "images",
+    #     "lightmaps",
+    #     "light",
+    #     "misc",
+    # ]
+    # sys.argv = [
+    #     "estimate.py",
+    #     "--ps_images_paths"
+    #     ]+glob.glob("/media/bcoupry/T7 Shield/CHAUVET_PROJECT/data/chevaux/rti/raw/RTI_*.NEF")+[
+    #     "--geometry_path",
+    #     "/media/bcoupry/T7 Shield/CHAUVET_PROJECT/data/chevaux/multi_view/mesh/mesh.ply",
+    #     "--pose_path",
+    #     "/media/bcoupry/T7 Shield/CHAUVET_PROJECT/data/chevaux/rti/pose.json",
+    #     "--delta",
+    #     "0.01",
+    #     "--learning_rate",
+    #     "0.001",
+    #     "--iterations",
+    #     "10000",
+    #     "--tqdm_refresh",
+    #     "5",
+    #     "--ps_chunck_number",
+    #     "100",
+    #     "--pattern",
+    #     'directional', 'punctual', 'LED',
+    #     "--out_path",
+    #     "/media/bcoupry/T7 Shield/ARTICLE_GAMMA/test_chevaux",
+    #     #"--loaded_light_folder",
+    #     #"/media/bcoupry/T7 Shield/ARTICLE_LONG/OURS_PS/results/chevaux/light/LED",
+    #     "--step",
+    #     "25",
+    #     "--slice_i",
+    #     "0",
+    #     "--backend",
+    #     "gpu",
+    # ]
+    for ps in [8]: 
+        # sys.argv = [
+        #     "estimate.py",
+        #     "--ps_images_paths"
+        #     ]+glob.glob(f"/media/bcoupry/T7 Shield/CHAUVET_2026/2026/08_SALLE_CRANE/08_D_MAMMOUTHS_RACLES/PS/20261316_08_CRANE_MMT_RACLES/50MM_MOSAIQUE/PS{ps:02d}/RAW/*.ARW")+[
+        #     "--meshroom_project",
+        #     "/media/bcoupry/T7 Shield/CHAUVET_2026/2026/08_SALLE_CRANE/08_D_MAMMOUTHS_RACLES/RES/meshroom",
+        #     "--delta",
+        #     "0.01",
+        #     "--learning_rate",
+        #     "0.001",
+        #     "--iterations",
+        #     "10000",
+        #     "--tqdm_refresh",
+        #     "5",
+        #     "--pattern",
+        #     'directional', 'punctual', 'LED',
+        #     "--out_path",
+        #     f"/media/bcoupry/T7 Shield/CHAUVET_2026/2026/08_SALLE_CRANE/08_D_MAMMOUTHS_RACLES/RES/LIGHT/20261316_08_CRANE_MMT_RACLES/50MM_MOSAIQUE/PS{ps:02d}",
+        #     "--step",
+        #     "25",
+        #     "--slice_i",
+        #     "0",
+        #     "--backend",
+        #     "gpu",
+        # ]
+        sys.argv = [
+            "estimate.py",
+            "--ps_images_paths"
+            ]+glob.glob(f"/media/bcoupry/T7 Shield/CHAUVET_2026/2026/08_SALLE_CRANE/08_D_MAMMOUTHS_RACLES/PS/20261316_08_CRANE_MMT_RACLES/50MM_MOSAIQUE/PS{ps:02d}/RAW/*.ARW")+[
+            "--meshroom_project",
+            "/media/bcoupry/T7 Shield/CHAUVET_2026/2026/08_SALLE_CRANE/08_D_MAMMOUTHS_RACLES/RES/meshroom",
+            "--delta",
+            "0.01",
+            "--learning_rate",
+            "0.001",
+            "--iterations",
+            "1000",
+            "--tqdm_refresh",
+            "1",
+            "--ps_chunck_number",
+            "100",
+            "--pattern",
+            "PS",
+            "--out_path",
+            f"/media/bcoupry/T7 Shield/CHAUVET_2026/2026/08_SALLE_CRANE/08_D_MAMMOUTHS_RACLES/RES/SELF_PS/20261316_08_CRANE_MMT_RACLES/50MM_MOSAIQUE/PS{ps:02d}",
+            "--loaded_light_folder",
+            f"/media/bcoupry/T7 Shield/CHAUVET_2026/2026/08_SALLE_CRANE/08_D_MAMMOUTHS_RACLES/RES/LIGHT/20261316_08_CRANE_MMT_RACLES/50MM_MOSAIQUE/PS{ps:02d}/LED/slice_00000",
+            "--step",
+            "2",
+            "--slice_i",
+            "-1",
+            "--backend",
+            "cpu",
+            "--skip_export",
+            "images",
+            "lightmaps",
+            "light",
+            "misc",
+        ]
+        main()
 
 
 #TODO : charger les données tel quel, dans tous les cas. Quand on charge la geometrie depuis un mesh, utiliser l'undisto inverse.

@@ -65,7 +65,7 @@ def load_image(path, remove_image_gamma=False):
             image = load_developped_image(path, remove_image_gamma=remove_image_gamma)
         elif format in {'.exr'}:
             image = load_exr_image(path)
-        elif format in {'.nef'}: #given a raw image
+        elif format in {'.nef', '.arw'}: #given a raw image
             image = load_raw_image(path)
         elif os.path.isdir(path):
             paths = tuple(os.path.join(path, f) for f in os.listdir(path)
@@ -101,7 +101,7 @@ def load_developped_image(path, remove_image_gamma=False):
 
 def load_raw_image(path):
     format = pathlib.Path(path).suffix.lower()
-    if format in {'.nef'}:
+    if format in {'.nef', '.arw'}:
         with rawpy.imread(path) as raw:
             image = jax.numpy.asarray(raw.postprocess(use_camera_wb=True, output_bps=16, no_auto_bright=True, gamma=(1,1), half_size=False, user_flip = 0)/(2**16-1))
     else:
