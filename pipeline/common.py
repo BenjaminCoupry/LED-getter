@@ -128,6 +128,10 @@ def parse_main_args():
     parser.add_argument(
         '--not_apply_geometry_undisto', action='store_true', help='Do not apply undisto when loading geometry from mesh or spheres'
         )
+    
+    parser.add_argument(
+        '--glob', action='store_true', help='Develop ps_images_paths with glob'
+        )
 
     parser.add_argument(
         '--remove_image_gamma', action='store_true', help='Remove the gamma correction when loading a developped image'
