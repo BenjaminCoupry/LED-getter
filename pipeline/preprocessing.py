@@ -12,9 +12,9 @@ def preprocess(ps_images_paths, sliced=slice(None), meshroom_project=None, align
                 geometry_path=None, pose_path=None, black_image_path=None, loaded_light_folder=None,
                 load_light_function=False, learning_rate=0.001, tqdm_refresh=0, added_values = {}, 
                 flip_lp=False, flip_mesh=True, apply_geometry_undisto=True,
-                spheres_to_load = None, remove_image_gamma = False):
+                spheres_to_load = None, remove_image_gamma = False, parent_image_name=0):
     ps_images_paths = list(map(lambda p : p if type(p) is tuple else (p,), ps_images_paths))
-    light_names = list(map(lambda p : pathlib.Path(p[0]).stem, ps_images_paths))
+    light_names = list(map(lambda p : (pathlib.Path(p[0]).parent.parent.stem if parent_image_name==2 else (pathlib.Path(p[0]).parent.stem if parent_image_name==1 else pathlib.Path(p[0]).stem)), ps_images_paths))
     pose_path = files.first_existing_file([pose_path, meshroom_project, geometry_path])
     geometry_path = files.first_existing_file([geometry_path, meshroom_project])
     aligned_image_path = files.first_existing_file([aligned_image_path, list(itertools.chain.from_iterable(ps_images_paths))], allow_any_obj=True)

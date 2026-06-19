@@ -136,6 +136,10 @@ def parse_main_args():
     parser.add_argument(
         '--remove_image_gamma', action='store_true', help='Remove the gamma correction when loading a developped image'
         )
+    parser.add_argument(
+        '--parent_image_name', type=int, default=0, choices=[0, 1, 2],
+        help="Wich parent folder is the light name"
+    )
     
 
     

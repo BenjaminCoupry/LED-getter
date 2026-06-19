@@ -33,7 +33,8 @@ def preprocess(args, sliced):
             flip_mesh= (not args.not_flip_mesh),
             apply_geometry_undisto = (not args.not_apply_geometry_undisto),
             spheres_to_load=args.spheres_to_load,
-            remove_image_gamma = args.remove_image_gamma
+            remove_image_gamma = args.remove_image_gamma,
+            parent_image_name=args.parent_image_name
         )
     return values, images, mask, raycaster, shapes, full_shape, output, optimizer, scale, light_dict, light_names, pose
 
@@ -81,7 +82,9 @@ def main():
 
 
 if __name__ == "__main__":
-        main()
+    main()
+    
+        
 
 
 #TODO : charger les données tel quel, dans tous les cas. Quand on charge la geometrie depuis un mesh, utiliser l'undisto inverse.
