@@ -92,7 +92,7 @@ def load_composed_image(paths, remove_image_gamma=False):
 def load_developped_image(path, remove_image_gamma=False):
     format = pathlib.Path(path).suffix.lower()
     if format in {'.jpg', '.jpeg', '.png'}: #given a developed image
-        image = jax.numpy.asarray(iio.imread(path)/255.0)
+        image = jax.numpy.asarray(iio.imread(path)/255.0)[..., :3]
         if remove_image_gamma :
             image = jax.numpy.power(image, 2.222)
     else:
@@ -293,7 +293,7 @@ def load_geometry(path, pixels, coordinates_transform, pose=None, flip_mesh=True
         raise ValueError(f"Unknown geometry format: {format}")
     return mask, normals, points, raycaster, objects_id_mask
 
-def load_pose(path, aligned_image_path=None):
+def load_pose(path, view_id = None, aligned_image_path=None):
     """
     Loads a camera pose from a json file or a Meshroom project.
 
@@ -316,7 +316,7 @@ def load_pose(path, aligned_image_path=None):
         elif format in {'.sfm'}:
             with open(path, 'r') as f:
                 sfm = json.load(f)
-            view_id = meshroom.get_view_id(sfm, aligned_image_path)
+            view_id = view_id if view_id is not None else meshroom.get_view_id(sfm, aligned_image_path)
             pose_dict = meshroom.get_pose_dict(sfm, view_id)
         K = jax.numpy.asarray(pose_dict['K']) if ('K' in pose_dict and pose_dict['K'] is not None) else camera.build_K_matrix(pose_dict['camera']['focal'], pose_dict['camera']['principal_point']['x'], pose_dict['camera']['principal_point']['y'])
         R = jax.numpy.asarray(pose_dict['R']) if ('R' in pose_dict and pose_dict['R'] is not None) else None

@@ -1,5 +1,6 @@
 import os
 import itertools
+import pathlib
 
 
 def common_end_length(path1, path2):
@@ -42,6 +43,14 @@ def find_similar_path(source, options):
     similarity, pairs_it = next(itertools.groupby(sorted_pairs, key = key), (0, None))
     elements = None if (pairs_it is None or similarity == 0) else list(pairs_it)
     return elements, similarity
+
+def get_parent_stem(path, parent):
+    path = pathlib.Path(path)
+    if parent == 0:
+        result = path.stem
+    else:
+        result = path.parents[parent - 1].stem
+    return result
 
 def first_existing_file(paths, allow_dir = True, allow_any_obj=False):
     predicate = lambda p : p is not None and (allow_any_obj or os.path.isfile(p) or (os.path.isdir(p) and allow_dir))

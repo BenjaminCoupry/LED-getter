@@ -1,6 +1,22 @@
 import jax
 import itertools
 
+def split_axes(v, axes):
+    ndim = jax.numpy.ndim(v)
+    axes = (axes,) if not isinstance(axes, tuple) else axes
+    axes = tuple(sorted(a % ndim for a in axes))
+    other_axes = tuple(a for a in range(ndim) if a not in axes)
+    return axes, other_axes
+
+def flat_other_axes(v, axes):
+    axes, other_axes = split_axes(v, axes)
+    permutation = other_axes + axes
+    transposed = jax.numpy.transpose(v, permutation)
+    flat = jax.numpy.reshape(transposed, (-1,) + jax.numpy.shape(transposed)[len(other_axes):])
+    other_shape = jax.numpy.shape(transposed)[:len(other_axes)]
+    return flat, other_axes, other_shape
+
+
 def norm_vector(v, epsilon = 1e-8):
     """computes the norm and direction of vectors
 

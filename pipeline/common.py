@@ -62,6 +62,10 @@ def parse_main_args():
         help="Path to the PS image aligned in the meshroom project (optional)."
     )
     parser.add_argument(
+        '--view_id', type=str, default=None,
+        help="View ID in the meshroom project (optional)."
+    )
+    parser.add_argument(
         '--geometry_path', type=str, default=None,
         help="Path to 3D mesh file (optional)."
     )
@@ -70,8 +74,8 @@ def parse_main_args():
         help="Path to camera pose as a JSON (optional)."
     )
     parser.add_argument(
-        '--black_image_path', type=str, default=None,
-        help="Path to black reference image (optional)."
+        '--black_image_path', type=str, default=None, action='append',
+        help="Path to black reference image (optional). Call multiple times to superpose images."
     )
     parser.add_argument(
         '--loaded_light_folder', type=str, default=None,

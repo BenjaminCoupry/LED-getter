@@ -2,6 +2,7 @@ import numpy
 import jax
 import glob
 import os
+import json
 import ledgetter.utils.files as files
 import ledgetter.image.camera as camera
 
@@ -70,6 +71,10 @@ def get_mesh_path(project_path):
     """
     mesh_path = max(glob.glob(os.path.join(project_path,'MeshroomCache','MeshFiltering','*','mesh.obj')), key=os.path.getmtime)
     return mesh_path
+
+def get_developped_images_folder(project_path):
+    images_folder = max(glob.glob(os.path.join(project_path,'MeshroomCache','PrepareDenseScene','*')), key=os.path.getmtime)
+    return images_folder
 
 def get_pose_dict(sfm, view_id):
     extrinsics, views, intrinsics, _ = unpack_sfm(sfm)

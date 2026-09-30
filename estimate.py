@@ -14,10 +14,9 @@ import itertools
 
 def preprocess(args, sliced):
     added_values = {} if args.pixel_step is None else {'pixel_step': args.pixel_step}
-    dev_ps_images_paths = [glob.glob(path[0]) if (args.glob and len(path)==1) else path for path in args.ps_images_paths]
     values, images, mask, raycaster, shapes, full_shape, output, optimizer, scale, light_dict, light_names, pose =\
         preprocessing.preprocess(
-            list(zip(*dev_ps_images_paths)),
+            args.ps_images_paths,
             sliced=sliced,
             meshroom_project=args.meshroom_project,
             aligned_image_path=args.aligned_image_path,
@@ -34,7 +33,9 @@ def preprocess(args, sliced):
             apply_geometry_undisto = (not args.not_apply_geometry_undisto),
             spheres_to_load=args.spheres_to_load,
             remove_image_gamma = args.remove_image_gamma,
-            parent_image_name=args.parent_image_name
+            parent_image_name=args.parent_image_name,
+            glob_ps_images_paths = args.glob,
+            view_id = args.view_id
         )
     return values, images, mask, raycaster, shapes, full_shape, output, optimizer, scale, light_dict, light_names, pose
 
@@ -82,7 +83,151 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    import sys
+    import glob
+    # for ps in range(12): 
+    #     sys.argv = [
+    #         "estimate.py",
+    #         "--ps_images_paths"
+    #         ]+glob.glob(f"/media/bcoupry/T7 Shield/BIFACE_PROJECT/data/biface/multi_view_photo_stereo/VIEW_{ps:05d}/PS_*/raw/EXPOSURE_00002.NEF")+[
+    #         "--black_image_path",
+    #         f"/media/bcoupry/T7 Shield/BIFACE_PROJECT/data/biface/multi_view_photo_stereo/VIEW_{ps:05d}/DARK/raw/EXPOSURE_00002.NEF",
+    #         "--geometry_path",
+    #         "/media/bcoupry/T7 Shield/BIFACE_PROJECT/data/biface/multi_view/mesh/mesh.ply",
+    #         "--pose_path",
+    #         f"/media/bcoupry/T7 Shield/BIFACE_PROJECT/data/biface/multi_view_photo_stereo/VIEW_{ps:05d}/pose.json",
+    #         "--delta",
+    #         "0.01",
+    #         "--learning_rate",
+    #         "0.001",
+    #         "--iterations",
+    #         "10000",
+    #         "--tqdm_refresh",
+    #         "5",
+    #         "--pattern",
+    #         'directional', 'punctual', 'LED',
+    #         "--out_path",
+    #         f"/media/bcoupry/T7 Shield/BIFACE_side/biface/LEDGETTER/VIEW_{ps:05d}",
+    #         "--step",
+    #         "10",
+    #         "--slice_i",
+    #         "0",
+    #         "--backend",
+    #         "gpu",
+    #         "--parent_image_name",
+    #         "2"
+    #     ]
+    #     main()
+    # for ps in range(9): 
+    #     sys.argv = [
+    #         "estimate.py",
+    #         "--ps_images_paths"
+    #         ]+glob.glob(f"/media/bcoupry/T7 Shield/MSR_PROJECT/data/calathos/multi_view_photo_stereo/VIEW_{ps:05d}/raw/RTI_*.NEF")+glob.glob(f"/media/bcoupry/T7 Shield/MSR_PROJECT/data/calathos/multi_view_photo_stereo/VIEW_{ps:05d}/raw/PS_*.NEF")+[
+    #         "--geometry_path",
+    #         "/media/bcoupry/T7 Shield/MSR_PROJECT/data/calathos/multi_view/mesh/mesh.ply",
+    #         "--pose_path",
+    #         f"/media/bcoupry/T7 Shield/MSR_PROJECT/data/calathos/multi_view_photo_stereo/VIEW_{ps:05d}/pose.json",
+    #         "--delta",
+    #         "0.01",
+    #         "--learning_rate",
+    #         "0.001",
+    #         "--iterations",
+    #         "10000",
+    #         "--tqdm_refresh",
+    #         "5",
+    #         "--pattern",
+    #         'directional', 'punctual', 'LED',
+    #         "--out_path",
+    #         f"/media/bcoupry/T7 Shield/MSR_side/calathos/LEDGETTER/VIEW_{ps:05d}",
+    #         "--step",
+    #         "10",
+    #         "--slice_i",
+    #         "0",
+    #         "--backend",
+    #         "gpu",
+    #     ]
+    #     main()
+    for ps in range(12): 
+        sys.argv = [
+            "estimate.py",
+            "--ps_images_paths"
+            ]+glob.glob(f"/media/bcoupry/T7 Shield/BIFACE_PROJECT/data/biface/multi_view_photo_stereo/VIEW_{ps:05d}/PS_*/raw/EXPOSURE_00002.NEF")+[
+             "--black_image_path",
+            f"/media/bcoupry/T7 Shield/BIFACE_PROJECT/data/biface/multi_view_photo_stereo/VIEW_{ps:05d}/DARK/raw/EXPOSURE_00002.NEF",
+            "--geometry_path",
+            "/media/bcoupry/T7 Shield/BIFACE_PROJECT/data/biface/multi_view/mesh/mesh.ply",
+            "--pose_path",
+            f"/media/bcoupry/T7 Shield/BIFACE_PROJECT/data/biface/multi_view_photo_stereo/VIEW_{ps:05d}/pose.json",
+            "--delta",
+            "0.01",
+            "--learning_rate",
+            "0.001",
+            "--iterations",
+            "1000",
+            "--ps_chunck_number",
+            "100",
+            "--tqdm_refresh",
+            "5",
+            "--pattern",
+            'PS',
+            "--out_path",
+            f"/media/bcoupry/T7 Shield/BIFACE_side/biface/LEDGETTER/VIEW_{ps:05d}",
+            "--step",
+            "1",
+            "--slice_i",
+            "-1",
+            "--backend",
+            "cpu",
+            "--skip_export",
+            "images",
+            "lightmaps",
+            "light",
+            "misc",
+            "--loaded_light_folder",
+            f"/media/bcoupry/T7 Shield/BIFACE_side/biface/LEDGETTER/VIEW_{ps:05d}/LED/slice_00000",
+            "--parent_image_name",
+            "2"
+        ]
+        main()
+    # for ps in range(9): 
+    #     sys.argv = [
+    #         "estimate.py",
+    #         "--ps_images_paths"
+    #         ]+glob.glob(f"/media/bcoupry/T7 Shield/MSR_PROJECT/data/calathos/multi_view_photo_stereo/VIEW_{ps:05d}/raw/RTI_*.NEF")+glob.glob(f"/media/bcoupry/T7 Shield/MSR_PROJECT/data/calathos/multi_view_photo_stereo/VIEW_{ps:05d}/raw/PS_*.NEF")+[
+    #         "--geometry_path",
+    #         "/media/bcoupry/T7 Shield/MSR_PROJECT/data/calathos/multi_view/mesh/mesh.ply",
+    #         "--pose_path",
+    #         f"/media/bcoupry/T7 Shield/MSR_PROJECT/data/calathos/multi_view_photo_stereo/VIEW_{ps:05d}/pose.json",
+    #         "--delta",
+    #         "0.01",
+    #         "--learning_rate",
+    #         "0.001",
+    #         "--iterations",
+    #         "1000",
+    #         "--ps_chunck_number",
+    #         "100",
+    #         "--tqdm_refresh",
+    #         "5",
+    #         "--pattern",
+    #         'PS',
+    #         "--out_path",
+    #         f"/media/bcoupry/T7 Shield/MSR_side/calathos/LEDGETTER/VIEW_{ps:05d}",
+    #         "--step",
+    #         "1",
+    #         "--slice_i",
+    #         "-1",
+    #         "--backend",
+    #         "cpu",
+    #         "--skip_export",
+    #         "images",
+    #         "lightmaps",
+    #         "light",
+    #         "misc",
+    #         "--loaded_light_folder",
+    #         f"/media/bcoupry/T7 Shield/MSR_side/calathos/LEDGETTER/VIEW_{ps:05d}/LED/slice_00000",
+    #     ]
+    #     main()
+
     
         
 
