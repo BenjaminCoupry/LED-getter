@@ -21,7 +21,7 @@ dependencies = [
     "open3d",
     "plotly",
     "sphericart",
-    "sphericart-jax",
+    "sphericart-jax==1.0.8",
     "tqdm",
     "pyyaml",
 ]
