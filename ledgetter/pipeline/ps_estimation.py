@@ -7,7 +7,7 @@ import ledgetter.models.models as models
 import ledgetter.utils.files as files
 import functools
 import jax
-import pipeline.common as common
+import ledgetter.pipeline.common as common
 
 def get_ps_minimizer(iterations, model, loss, optimizer, projections, backend):
     @functions.pass_by_device(backend)
@@ -41,9 +41,9 @@ def estimate_ps(iterations, values, images, mask, raycaster, shapes, output, opt
     state = (jax.numpy.zeros((iterations,)), 0, None)
     chunckable_args, atomic_args = chuncks.split_dict(values | {'images' : images}, models.is_pixelwise)
     chuncked_values, state = chuncks.chunckwise_treatement(treatement, state, chunckable_args, atomic_args, chunck_number, output=output)
-    validity_mask = chuncked_values['validity_mask']
+    validity_mask = chuncked_values['validity_mask'] # type: ignore
     losses_sum, n, atomic_values = state
-    values = {k:v for k, v in chuncked_values.items() if k not in {'validity_mask'}} | atomic_values
+    values = {k:v for k, v in chuncked_values.items() if k not in {'validity_mask'}} | atomic_values # type: ignore
     losses_values = losses_sum / n
 
     light_dict = common.update_light_dict(light_dict, name='PS', losses_values=losses_values, model=model, values=values, light=light)

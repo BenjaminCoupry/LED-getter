@@ -2,11 +2,11 @@ import os
 os.environ["XLA_PYTHON_CLIENT_MEM_FRACTION"] = "0.95"
 os.environ["XLA_PYTHON_CLIENT_PREALLOCATE"] = "true"
 
-import pipeline.common as common
+import ledgetter.pipeline.common as common
 
 import ledgetter.utils.vector_tools as vector_tools
 import ledgetter.utils.loading as loading
-import pipeline.outputs as outputs
+import ledgetter.pipeline.outputs as outputs
 import jax
 
 

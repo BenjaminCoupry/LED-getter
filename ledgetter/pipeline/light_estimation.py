@@ -1,6 +1,6 @@
 import glob
-import pipeline.common as common
-import pipeline.outputs as outputs
+import ledgetter.pipeline.common as common
+import ledgetter.pipeline.outputs as outputs
 import optax
 import numpy
 import jax

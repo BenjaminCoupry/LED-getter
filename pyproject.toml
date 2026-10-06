@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ledgetter"
+version = "0.1.0"
+description = "3D reconstruction by near-light photometric stereo"
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.9"
+dependencies = [
+    "numpy",
+    "scipy",
+    "jax",
+    "optax",
+    "imageio",
+    "rawpy",
+    "OpenEXR",
+    "networkx",
+    "open3d",
+    "plotly",
+    "sphericart",
+    "sphericart-jax",
+    "tqdm",
+    "pyyaml",
+]
+
+[tool.setuptools]
+py-modules = ["estimate"]
+
+[tool.setuptools.packages.find]
+include = ["ledgetter*"]
